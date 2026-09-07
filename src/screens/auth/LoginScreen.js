@@ -34,7 +34,8 @@ export default function LoginScreen({ navigation }) {
   // Logo scales with screen width (caps at 256, the mockup's w-64) so it never
   // overflows on small devices.
   const { width } = useWindowDimensions();
-  const logoSize = Math.min(256, Math.round(width * 0.6));
+  // Portrait Maison de Build logo — size by width so its height stays balanced.
+  const logoSize = Math.min(84, Math.round(width * 0.21));
 
   const setAuth = useAuthStore((s) => s.setAuth);
 

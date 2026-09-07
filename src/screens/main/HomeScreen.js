@@ -44,7 +44,7 @@ function countdownLabel(iso) {
 // Icons mirror the Stitch design's Material Symbols exactly (MaterialIcons set).
 const QUICK = [
   { label: 'ACTIVITIES', icon: 'fitness-center',       color: '#00BCD4', route: 'Activities' },
-  { label: 'CAFE',       icon: 'local-cafe',           color: '#FFA000', route: 'Cafe' },
+  { label: 'CAFE',       icon: 'local-cafe',           color: '#FFA000', route: 'Cafe', comingSoon: true },
   { label: 'RANKING',    icon: 'leaderboard',          color: GOLD,      route: 'Leaderboard' },
   { label: 'COMMUNITY',  icon: 'forum',                color: '#9C27B0', route: 'Community' },
   { label: 'TRAINERS',   icon: 'sports-martial-arts',  color: '#4CAF50', route: 'Trainers' },
@@ -345,10 +345,12 @@ export default function HomeScreen({ navigation }) {
         {/* ── QUICK ACCESS GRID ────────────────────── */}
         <View style={styles.quickGrid}>
           {QUICK.map((q) => {
+            const cs = q.comingSoon;
             const tile = (
               <TouchableOpacity
-                style={styles.quickTile}
+                style={[styles.quickTile, cs && styles.quickTileDisabled]}
                 activeOpacity={0.85}
+                disabled={cs}
                 onPress={() => navigation.push(q.route)}
               >
                 <MaterialIcons
@@ -361,7 +363,18 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
             );
             // Every tile gets an equal grid slot so tiles occupy identical space.
-            return <View key={q.label} style={styles.quickTileSlot}>{tile}</View>;
+            return (
+              <View key={q.label} style={styles.quickTileSlot}>
+                {tile}
+                {cs && (
+                  <View style={styles.quickSoonWrap} pointerEvents="none">
+                    <View style={styles.quickSoonBadge}>
+                      <Text style={styles.quickSoonText}>COMING SOON</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            );
           })}
         </View>
 
@@ -656,6 +669,13 @@ const styles = StyleSheet.create({
   // Grid slot: fixes each tile's footprint so greyed (GreyedOut-wrapped) and
   // normal tiles occupy identical space — 3 per row, wrapping to new rows.
   quickTileSlot: { width: '30%', flexGrow: 1 },
+  quickTileDisabled: { opacity: 0.4 },
+  quickSoonWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  quickSoonBadge: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+    backgroundColor: 'rgba(20,18,26,0.92)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+  },
+  quickSoonText: { fontFamily: FONTS.label, fontSize: 8, letterSpacing: 0.8, color: COLORS.white },
   quickTile: {
     width: '100%', backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',

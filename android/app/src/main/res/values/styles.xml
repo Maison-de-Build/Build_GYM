@@ -1,8 +1,11 @@
 <resources>
   <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
     <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+    <!-- Branded window background (dark + Maison mark) so the splash holds seamlessly
+         while the JS bundle loads instead of flashing a blank/black screen. -->
+    <item name="android:windowBackground">@drawable/splashscreen</item>
   </style>
   <style name="Theme.App.SplashScreen" parent="AppTheme">
-    <item name="android:windowBackground">@drawable/splashscreen_logo</item>
+    <item name="android:windowBackground">@drawable/splashscreen</item>
   </style>
 </resources>

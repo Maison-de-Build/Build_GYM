@@ -16,6 +16,8 @@ import {
   setupNotificationListeners,
   handleNotificationData,
   storeColdStartData,
+  getNotificationPermission,
+  requestNotificationPermission,
 } from './src/services/notificationService';
 import { useAuthStore } from './src/store/authStore';
 import { useAnnouncementStore } from './src/store/announcementStore';
@@ -38,6 +40,20 @@ export default function App() {
       const { isAuthenticated } = useAuthStore.getState();
       if (isAuthenticated) {
         useAnnouncementStore.getState().refreshUnreadCount().catch(() => {});
+      }
+
+      // ── 2. Ask for notification permission on launch (once) ──────────────
+      // Fire the system dialog on first launch, like most apps. If the user
+      // denies (or has already), the in-app NotificationPermissionBanner takes
+      // over as the text fallback. requestNotificationPermission only shows the
+      // OS dialog while canAskAgain is true; otherwise it's a no-op.
+      try {
+        const perm = await getNotificationPermission();
+        if (!perm.granted && perm.canAskAgain) {
+          await requestNotificationPermission();
+        }
+      } catch (err) {
+        console.warn('launch notification permission prompt failed:', err?.message);
       }
 
       // ── 3. Register & sync FCM device token ──────────────────────────────

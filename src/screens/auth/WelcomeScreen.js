@@ -7,7 +7,7 @@ import { COLORS, FONTS, TYPE } from '../../theme';
 import { HoloButton } from '../../components/auth';
 import { useAuthStore } from '../../store/authStore';
 
-const LOGO = require('../../../assets/build-logo-outline.png');
+const LOGO = require('../../../assets/maison-logo.png');
 
 /**
  * Post-onboarding welcome — "Obsidian Pulse" mockup
@@ -133,13 +133,13 @@ const styles = StyleSheet.create({
   },
 
   // Logo
-  logoWrap: { alignItems: 'center', justifyContent: 'center', width: 240, height: 150 },
+  logoWrap: { alignItems: 'center', justifyContent: 'center', width: 200, height: 210 },
   logoGlow: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: { width: 220, height: 137 },
+  logo: { width: 165, height: 202 },
 
   // CTA
   cta: { width: '100%', alignItems: 'center' },

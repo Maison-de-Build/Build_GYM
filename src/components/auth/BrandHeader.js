@@ -2,16 +2,16 @@ import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { TYPE } from '../../theme';
 
-const LOGO_SOLID = require('../../../assets/build-logo.png');          // square, black bg
-const LOGO_OUTLINE = require('../../../assets/build-logo-outline.png'); // 634x394, transparent line-art
-const OUTLINE_RATIO = 634 / 394;
+const MAISON_LOGO = require('../../../assets/maison-logo.png'); // 1238x1516, transparent (mark + wordmark)
+const LOGO_SOLID = MAISON_LOGO;
+const LOGO_OUTLINE = MAISON_LOGO;
+const OUTLINE_RATIO = 1238 / 1516; // portrait
 
 /**
- * BUILD wordmark + optional title / subtitle.
+ * Maison de Build logo + optional title / subtitle.
  *
  * Props:
- *   variant  ('solid' | 'outline')  logo treatment. 'outline' = holographic
- *            line-art used on the login hero (default 'solid').
+ *   variant  ('solid' | 'outline')  logo treatment.
  *   logoSize (number)  for 'solid' = square side; for 'outline' = width.
  *   title, subtitle (string)  optional copy below the logo.
  *   style    (style)   wrapper override.
