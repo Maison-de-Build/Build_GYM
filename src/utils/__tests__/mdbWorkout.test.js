@@ -519,3 +519,69 @@ describe('targetLine — weight formatting', () => {
     expect(targetLine({ sets: 3, targetReps: 8, targetWeight: '62.50' })).toBe('3 × 8 @ 62.5 kg');
   });
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * pickHeadlinePr / prHeadlineLabel — screen 16 PR card.
+ * Regression: GET /member/stats/prs/:id returns { prs, estimated1RM }, an
+ * OBJECT. The screen fed that straight to Array.filter → "undefined is not a
+ * function" → crash on Trainer → dashboard → exercise sequence row.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+import { pickHeadlinePr, prHeadlineLabel } from '../mdbWorkout.js';
+
+describe('pickHeadlinePr', () => {
+  it('unwraps the { prs, estimated1RM } object the endpoint actually returns', () => {
+    const payload = {
+      prs: [
+        { prType: 'max_weight', value: '200.00', achievedAt: '2026-08-25T11:23:52Z' },
+        { prType: 'max_reps', value: '5', achievedAt: '2026-07-01T00:00:00Z' },
+      ],
+      estimated1RM: 233.3,
+    };
+    const pr = pickHeadlinePr(payload);
+    expect(pr).not.toBeNull();
+    expect(pr.weight).toBe(200);
+    expect(pr.reps).toBe(5);
+    expect(pr.achievedAt).toBe('2026-08-25T11:23:52Z');
+  });
+
+  it('also accepts a bare array', () => {
+    expect(pickHeadlinePr([{ prType: 'max_weight', value: '70' }]).weight).toBe(70);
+  });
+
+  it('never throws on the shapes that caused the crash', () => {
+    // The old code did `input.filter(...)` on each of these.
+    expect(() => pickHeadlinePr(null)).not.toThrow();
+    expect(() => pickHeadlinePr(undefined)).not.toThrow();
+    expect(() => pickHeadlinePr({})).not.toThrow();
+    expect(() => pickHeadlinePr({ estimated1RM: 100 })).not.toThrow();
+    expect(pickHeadlinePr(null)).toBeNull();
+    expect(pickHeadlinePr({})).toBeNull();
+    expect(pickHeadlinePr({ prs: [] })).toBeNull();
+  });
+
+  it('falls back to a reps- or volume-only PR when there is no weight PR', () => {
+    expect(pickHeadlinePr([{ prType: 'max_reps', value: '12' }]).reps).toBe(12);
+    expect(pickHeadlinePr([{ prType: 'max_volume', value: '3400' }]).volume).toBe(3400);
+  });
+
+  it('ignores a PR row with a null value', () => {
+    expect(pickHeadlinePr([{ prType: 'max_weight', value: null }])).toBeNull();
+  });
+});
+
+describe('prHeadlineLabel', () => {
+  it('pairs weight with the reps PR when both exist', () => {
+    expect(prHeadlineLabel({ weight: 70, reps: 6 })).toBe('70 kg · best 6 reps');
+  });
+  it('shows weight alone when there is no reps PR', () => {
+    expect(prHeadlineLabel({ weight: 62.5, reps: null })).toBe('62.5 kg');
+    expect(prHeadlineLabel({ weight: 40 })).toBe('40 kg');
+  });
+  it('falls back to reps, then volume, then dash', () => {
+    expect(prHeadlineLabel({ reps: 15 })).toBe('15 reps');
+    expect(prHeadlineLabel({ volume: 3421 })).toBe('3,421 kg volume');
+    expect(prHeadlineLabel(null)).toBe('—');
+    expect(prHeadlineLabel({})).toBe('—');
+  });
+});

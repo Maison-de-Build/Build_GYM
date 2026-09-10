@@ -204,6 +204,42 @@ export function trimWeight(v) {
   return Number.isFinite(n) ? n : v;
 }
 
+
+/**
+ * Headline personal record for screen 16. `personal_records` stores one row per
+ * PR type ({ prType, value, achievedAt }) with no weight+reps pairing, and
+ * GET /member/stats/prs/:id wraps them in { prs, estimated1RM } — passing that
+ * object straight to Array.filter crashed the screen. Accepts the array, that
+ * wrapper, or null; returns null when there is nothing to show.
+ */
+export function pickHeadlinePr(input) {
+  const prs = Array.isArray(input?.prs) ? input.prs : (Array.isArray(input) ? input : []);
+  if (!prs.length) return null;
+  const byType = (t) => prs.find((p) => p.prType === t);
+  const weight = byType('max_weight');
+  const reps = byType('max_reps');
+  const volume = byType('max_volume');
+  const head = weight || reps || volume;
+  if (!head || head.value == null) return null;
+  return {
+    weight: weight != null ? Number(weight.value) : null,
+    reps: reps != null ? Number(reps.value) : null,
+    volume: volume != null ? Number(volume.value) : null,
+    achievedAt: head.achievedAt || head.createdAt || null,
+  };
+}
+
+/** "70 kg · best 6 reps" / "6 reps" / "1,240 kg volume" / "—". */
+export function prHeadlineLabel(pr) {
+  if (!pr) return '—';
+  if (pr.weight != null) {
+    return pr.reps != null ? `${trimWeight(pr.weight)} kg · best ${pr.reps} reps` : `${trimWeight(pr.weight)} kg`;
+  }
+  if (pr.reps != null) return `${pr.reps} reps`;
+  if (pr.volume != null) return `${Math.round(pr.volume).toLocaleString()} kg volume`;
+  return '—';
+}
+
 /** Prescribed tonnage: Σ sets × reps × weight, weight-bearing exercises only. */
 export function targetLoadKg(exercises = []) {
   let total = 0;

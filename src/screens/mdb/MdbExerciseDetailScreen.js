@@ -25,7 +25,7 @@ import {
   fetchWorkingMax, fetchExercisePRs, fetch1rmTrend,
   fetchExerciseSessions, fetchExerciseById,
 } from '../../services/workoutService';
-import { titleCase } from '../../utils/mdbWorkout';
+import { titleCase, pickHeadlinePr, prHeadlineLabel } from '../../utils/mdbWorkout';
 
 export default function MdbExerciseDetailScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -34,6 +34,7 @@ export default function MdbExerciseDetailScreen({ route, navigation }) {
   const [exercise, setExercise] = useState(null);
   const [workingMax, setWorkingMax] = useState(null);
   const [prs, setPrs] = useState([]);
+  const [prEst1rm, setPrEst1rm] = useState(null);
   const [trend, setTrend] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,16 +52,22 @@ export default function MdbExerciseDetailScreen({ route, navigation }) {
       // /member/working-max returns a list when unfiltered, a row when filtered.
       const wmValue = wm.status === 'fulfilled' ? wm.value : null;
       setWorkingMax(Array.isArray(wmValue) ? wmValue[0] || null : wmValue);
-      setPrs(pr.status === 'fulfilled' ? (pr.value || []) : []);
-      setTrend(tr.status === 'fulfilled' ? (tr.value || []) : []);
-      setSessions(ses.status === 'fulfilled' ? (ses.value || []) : []);
+      // /member/stats/prs/:id returns { prs: [...], estimated1RM } — an object,
+      // NOT an array. Passing the whole thing to pickBestPr() made it call
+      // {}.filter and crash the screen ("undefined is not a function").
+      const prPayload = pr.status === 'fulfilled' ? pr.value : null;
+      setPrs(Array.isArray(prPayload?.prs) ? prPayload.prs : (Array.isArray(prPayload) ? prPayload : []));
+      setPrEst1rm(prPayload?.estimated1RM != null ? Number(prPayload.estimated1RM) : null);
+      setTrend(tr.status === 'fulfilled' && Array.isArray(tr.value) ? tr.value : []);
+      setSessions(ses.status === 'fulfilled' && Array.isArray(ses.value) ? ses.value : []);
       setLoading(false);
     })();
   }, [exerciseId]);
 
   const title = exercise?.name || seedName || 'Exercise';
-  const est1rm = workingMax?.estimated1rmKg != null ? Number(workingMax.estimated1rmKg) : null;
-  const bestPr = pickBestPr(prs);
+  const est1rm = workingMax?.estimated1rmKg != null ? Number(workingMax.estimated1rmKg)
+    : (prEst1rm != null ? prEst1rm : null);
+  const bestPr = pickHeadlinePr(prs);
   const latestTrend = trend.length ? trend[trend.length - 1].est1rm : null;
 
   if (loading) {
@@ -136,11 +143,7 @@ export default function MdbExerciseDetailScreen({ route, navigation }) {
           <View style={s.prCard}>
             <View>
               <Text style={s.sectionLabel}>PERSONAL RECORD</Text>
-              <Text style={s.prValue}>
-                {bestPr.weight != null
-                  ? `${trim(bestPr.weight)} kg × ${bestPr.reps ?? '—'} reps`
-                  : `${bestPr.reps ?? '—'} reps`}
-              </Text>
+              <Text style={s.prValue}>{prHeadlineLabel(bestPr)}</Text>
             </View>
             <View style={s.prRight}>
               <Text style={s.prDate}>{shortDate(bestPr.achievedAt)}</Text>
@@ -208,23 +211,12 @@ export default function MdbExerciseDetailScreen({ route, navigation }) {
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 
-/** The pack shows one headline record — the heaviest verified set. */
-function pickBestPr(prs) {
-  const weighted = prs.filter((p) => p.prType === 'max_weight' || p.value != null);
-  if (!weighted.length) return null;
-  const top = weighted.reduce((a, b) => (Number(b.value) > Number(a.value) ? b : a));
-  return {
-    weight: top.prType === 'max_weight' ? Number(top.value) : (top.actualWeight ?? null),
-    reps: top.actualReps ?? top.reps ?? null,
-    achievedAt: top.achievedAt || top.createdAt,
-  };
-}
-
 /** "3 × 10 @ 22, 24, 24 kg" — set count, top reps, then each distinct load. */
 function sessionLine(row) {
-  const weights = (row.weights || []).filter((w) => w != null);
+  const weights = Array.isArray(row.weights) ? row.weights.filter((w) => w != null) : [];
   const loads = weights.length ? `${weights.map(trim).join(', ')} kg` : 'Bodyweight';
-  const reps = row.topReps != null ? `${row.setCount} × ${row.topReps}` : `${row.setCount} sets`;
+  const count = row.setCount ?? 0;
+  const reps = row.topReps != null ? `${count} × ${row.topReps}` : `${count} sets`;
   return `${reps} @ ${loads}`;
 }
 

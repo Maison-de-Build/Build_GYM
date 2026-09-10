@@ -100,7 +100,7 @@ export default function MdbAnalyticsScreen({ navigation }) {
       setLedger({
         streakWeeks: st.status === 'fulfilled' && st.value?.currentStreak != null
           ? Math.floor(st.value.currentStreak / 7) : null,
-        prCount: pr.status === 'fulfilled' ? (pr.value || []).length : null,
+        prCount: pr.status === 'fulfilled' && Array.isArray(pr.value) ? pr.value.length : null,
       });
     });
   }, []);
@@ -128,7 +128,7 @@ export default function MdbAnalyticsScreen({ navigation }) {
 
   useEffect(() => {
     if (!exerciseId) return;
-    fetch1rmTrend(exerciseId).then((r) => setTrend(r || [])).catch(() => setTrend([]));
+    fetch1rmTrend(exerciseId).then((r) => setTrend(Array.isArray(r) ? r : [])).catch(() => setTrend([]));
   }, [exerciseId]);
 
   const daily = data?.dailyVolume || [];
