@@ -100,6 +100,24 @@ import BookingConfirmationScreen from '../screens/main/BookingConfirmationScreen
 import BookingQRScreen from '../screens/main/BookingQRScreen';
 import TrainersScreen from '../screens/main/TrainersScreen';
 
+// Maison de Build — new "Train Heroic" workout flow (screens 01-23).
+// Additive: these are new routes over new screens; nothing existing is replaced.
+import MdbTrainingHubScreen from '../screens/mdb/MdbTrainingHubScreen';
+import MdbActiveSessionScreen from '../screens/mdb/MdbActiveSessionScreen';
+import MdbWorkoutSummaryScreen from '../screens/mdb/MdbWorkoutSummaryScreen';
+import MdbTemplateBrowserScreen from '../screens/mdb/MdbTemplateBrowserScreen';
+import MdbTemplateDetailScreen from '../screens/mdb/MdbTemplateDetailScreen';
+import MdbMuscleRecoveryScreen from '../screens/mdb/MdbMuscleRecoveryScreen';
+import MdbExerciseDetailScreen from '../screens/mdb/MdbExerciseDetailScreen';
+import MdbDashboardScreen from '../screens/mdb/MdbDashboardScreen';
+import MdbAnalyticsScreen from '../screens/mdb/MdbAnalyticsScreen';
+import MdbProgressTrackerScreen from '../screens/mdb/MdbProgressTrackerScreen';
+import MdbWorkoutHistoryScreen from '../screens/mdb/MdbWorkoutHistoryScreen';
+import MdbNutritionScreen from '../screens/mdb/MdbNutritionScreen';
+import MdbWearableSettingsScreen from '../screens/mdb/MdbWearableSettingsScreen';
+import MdbHealthMetricsScreen from '../screens/mdb/MdbHealthMetricsScreen';
+import MdbShareCardScreen from '../screens/mdb/MdbShareCardScreen';
+
 // Gaming Zone (GZSM)
 import GamingScreen from '../screens/main/gaming/GamingScreen';
 import GamingScanScreen from '../screens/main/gaming/ScanScreen';
@@ -285,7 +303,10 @@ export default function AppNavigator() {
           component={TransactionDetailScreen}
           options={{ animation: 'slide_from_right' }}
         />
-        <Stack.Screen name="Activity" component={ActivityDashboardScreen} />
+        {/* Screen 23 replaces the Activity Dashboard. The previous screen stays
+            registered under LegacyActivityDashboard so this is a one-line revert. */}
+        <Stack.Screen name="Activity" component={MdbDashboardScreen} />
+        <Stack.Screen name="LegacyActivityDashboard" component={ActivityDashboardScreen} />
         <Stack.Screen name="ProgressTracker" component={ProgressTrackerScreen} />
         <Stack.Screen name="Complaint" component={ComplaintScreen} />
         <Stack.Screen name="MyComplaints" component={MyComplaintsScreen} />
@@ -365,6 +386,33 @@ export default function AppNavigator() {
           component={GamingActiveSessionScreen}
           options={{ gestureEnabled: false }}
         />
+
+        {/* ── Maison de Build workout flow (new) ─────────────────────────
+            Entered from the dashboard's TRAINING tile. MdbTrainingHub picks
+            screen 01 (trainer-assigned) or 02 (freestyle) by member mode. */}
+        <Stack.Screen name="MdbTrainingHub" component={MdbTrainingHubScreen} />
+        <Stack.Screen
+          name="MdbActiveSession"
+          component={MdbActiveSessionScreen}
+          options={{ gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="MdbWorkoutSummary"
+          component={MdbWorkoutSummaryScreen}
+          options={{ gestureEnabled: false }}
+        />
+        <Stack.Screen name="MdbTemplateBrowser" component={MdbTemplateBrowserScreen} />
+        <Stack.Screen name="MdbTemplateDetail" component={MdbTemplateDetailScreen} />
+        <Stack.Screen name="MdbMuscleRecovery" component={MdbMuscleRecoveryScreen} />
+        <Stack.Screen name="MdbExerciseDetail" component={MdbExerciseDetailScreen} />
+        <Stack.Screen name="MdbDashboard" component={MdbDashboardScreen} />
+        <Stack.Screen name="MdbAnalytics" component={MdbAnalyticsScreen} />
+        <Stack.Screen name="MdbProgressTracker" component={MdbProgressTrackerScreen} />
+        <Stack.Screen name="MdbWorkoutHistory" component={MdbWorkoutHistoryScreen} />
+        <Stack.Screen name="MdbNutrition" component={MdbNutritionScreen} />
+        <Stack.Screen name="MdbWearableSettings" component={MdbWearableSettingsScreen} />
+        <Stack.Screen name="MdbHealthMetrics" component={MdbHealthMetricsScreen} />
+        <Stack.Screen name="MdbShareCard" component={MdbShareCardScreen} />
 
         {/* Workout screens */}
         <Stack.Screen name="WorkoutHome" component={WorkoutHomeScreen} />

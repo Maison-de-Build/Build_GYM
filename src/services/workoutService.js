@@ -164,6 +164,20 @@ export const fetch1rmTrend = async (exerciseId) => {
 };
 
 // ── Freestyle template browser (A.4) — members with no trainer ───────────────
+// Screen 09 — every Insights figure for one date range in a single call, so the
+// Week | Month | All | Custom control is a single refetch.
+export const fetchInsights = async (from, to) => {
+  const { data } = await api.get('/member/stats/insights', { params: { from, to } });
+  return data.data;
+};
+
+// Screen 16 — the member's last N logged sessions for one exercise, already
+// collapsed server-side into set count / reps / per-set loads.
+export const fetchExerciseSessions = async (exerciseId, limit = 5) => {
+  const { data } = await api.get(`/member/stats/exercise/${exerciseId}/sessions`, { params: { limit } });
+  return data.data;
+};
+
 export const fetchTemplateTagOptions = async () => {
   const { data } = await api.get('/template-tag-options', { params: { activeOnly: '1' } });
   return data.data; // { category:[], activity_target:[], frequency_fit:[] }
@@ -172,6 +186,14 @@ export const fetchTemplateTagOptions = async () => {
 export const browseTemplates = async (filters = {}) => {
   const { data } = await api.get('/workout/templates/browse', { params: filters });
   return data.data; // enriched templates
+};
+
+// Screen 11 — per-member resolved prescription for one gym template. The
+// backend runs the same buildSnapshot() the real assignment will, so "@ 62.5 kg
+// (75% of your max)" here matches what lands on the calendar.
+export const previewTemplate = async (templateId) => {
+  const { data } = await api.get(`/workout/templates/${templateId}/preview`);
+  return data.data;
 };
 
 export const selfAssignTemplate = async (templateId, date, replace = false) => {

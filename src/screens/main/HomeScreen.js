@@ -47,6 +47,7 @@ const QUICK = [
   { label: 'CAFE',       icon: 'local-cafe',           color: '#FFA000', route: 'Cafe', comingSoon: true },
   { label: 'RANKING',    icon: 'leaderboard',          color: GOLD,      route: 'Leaderboard' },
   { label: 'COMMUNITY',  icon: 'forum',                color: '#9C27B0', route: 'Community' },
+  { label: 'TRAINING',   icon: 'sports-gymnastics',    color: '#A77BFF', route: 'MdbTrainingHub' },
   { label: 'TRAINERS',   icon: 'sports-martial-arts',  color: '#4CAF50', route: 'Trainers' },
   { label: 'BLOGS',      icon: 'menu-book',            color: '#4A90D9', route: 'BlogList' },
   { label: 'GAMING',     icon: 'sports-esports',       color: '#7C3AED', route: 'Gaming' },
@@ -377,36 +378,6 @@ export default function HomeScreen({ navigation }) {
             );
           })}
         </View>
-
-        {/* ── TODAY'S WORKOUT ──────────────────────── */}
-        <TouchableOpacity
-          style={styles.workoutCard}
-          activeOpacity={0.9}
-          onPress={() => navigation.push('WorkoutHome')}
-        >
-          <View>
-            <Text style={styles.workoutEyebrow}>TODAY'S WORKOUT</Text>
-            {todayWorkout
-              ? (todayWorkout.coach
-                  ? <Text style={styles.workoutCoach}>Assigned by {todayWorkout.coach}</Text>
-                  : <Text style={styles.workoutCoach}>Self workout</Text>)
-              : <Text style={styles.workoutCoach}>Nothing scheduled</Text>}
-          </View>
-          <View style={{ marginTop: 8 }}>
-            <Text style={styles.workoutTitle}>{todayWorkout ? todayWorkout.name : 'Rest Day'}</Text>
-            <Text style={styles.workoutMeta}>
-              {todayWorkout
-                ? `${todayWorkout.exCount} exercise${todayWorkout.exCount === 1 ? '' : 's'}${todayWorkout.status ? ` · ${STATUS_LABEL[todayWorkout.status] || todayWorkout.status}` : ''}`
-                : 'No workout assigned — recover and come back stronger'}
-            </Text>
-          </View>
-          <View style={styles.workoutFooter}>
-            <View style={styles.workoutLink}>
-              <Text style={styles.workoutLinkText}>{todayWorkout ? 'VIEW WORKOUT' : 'OPEN WORKOUTS'}</Text>
-              <MaterialIcons name="arrow-forward" size={13} color={COLORS.primaryLight} />
-            </View>
-          </View>
-        </TouchableOpacity>
 
         {/* ── UPCOMING TRIAL (bottom of dashboard) ──────────── */}
         {upcomingTrial && (

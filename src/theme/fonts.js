@@ -35,6 +35,18 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+// "Maison de Build" typography — used ONLY by the new MDB screens via
+// src/theme/mdbKit (MF). Montserrat 300/400/500/600/700 + JetBrains Mono figures.
+import {
+  Montserrat_300Light,
+  Montserrat_400Regular,
+  Montserrat_500Medium,
+} from '@expo-google-fonts/montserrat';
+import {
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+  JetBrainsMono_600SemiBold,
+} from '@expo-google-fonts/jetbrains-mono';
 
 // Map passed to useFonts(). Key = the string you set as fontFamily.
 export const FONT_ASSETS = {
@@ -52,6 +64,13 @@ export const FONT_ASSETS = {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
+  // Maison de Build
+  Montserrat_300Light,
+  Montserrat_400Regular,
+  Montserrat_500Medium,
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+  JetBrainsMono_600SemiBold,
 };
 
 // Semantic family names — use these in StyleSheet, never the raw strings.
