@@ -186,13 +186,22 @@ export function sequenceOf(instance) {
  * wording for a bodyweight exercise with no prescribed load.
  */
 export function targetLine(ex) {
-  const base = formatTarget(ex);
+  // Snapshot weights come back as numerics ("40.00"), which the pack never
+  // shows — its targets read "@ 22 kg", not "@ 22.00 kg". Trim before
+  // formatting so a whole number loses its decimals and 22.5 keeps them.
+  const base = formatTarget(ex?.targetWeight != null ? { ...ex, targetWeight: trimWeight(ex.targetWeight) } : ex);
   const type = ex?.measurementType || 'weight_reps';
   if (type === 'weight_reps' && ex?.targetWeight == null) {
     if (ex?.equipmentType === 'bodyweight' || ex?.equipment === 'bodyweight') return `${base} @ Bodyweight`;
     if (ex?.weightSource === 'uncalibrated') return `${base} @ Weight TBD`;
   }
   return base;
+}
+
+/** "40.00" → 40, "22.50" → 22.5. Returns the input unchanged if not numeric. */
+export function trimWeight(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : v;
 }
 
 /** Prescribed tonnage: Σ sets × reps × weight, weight-bearing exercises only. */

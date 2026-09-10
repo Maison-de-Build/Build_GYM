@@ -248,7 +248,10 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
           )}
 
           {/* ── SUGGESTED FOR YOU ──────────────────────────────────────── */}
-          {suggested.length > 0 && (
+          {/* Hidden on a past day for the same reason the "+" is: every card
+              here leads to scheduling, and self-assign only accepts today..+14,
+              so on a past date the whole rail is a dead end ending in a 400. */}
+          {suggested.length > 0 && perms.canSchedule && (
             <View>
               <View style={[s.sectionHead, { marginBottom: 12 }]}>
                 <Text style={s.sectionLabel}>SUGGESTED FOR YOU</Text>

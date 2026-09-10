@@ -507,3 +507,15 @@ describe('monthTitle', () => {
     expect(monthTitle('2026-01-01')).toBe('January 2026');
   });
 });
+
+describe('targetLine — weight formatting', () => {
+  it('drops the decimals a numeric column adds', () => {
+    // Snapshot weights arrive as "40.00"; the pack shows "@ 40 kg".
+    expect(targetLine({ sets: 3, targetReps: 8, targetWeight: '40.00' })).toBe('3 × 8 @ 40 kg');
+    expect(targetLine({ sets: 3, targetReps: 8, targetWeight: 40 })).toBe('3 × 8 @ 40 kg');
+  });
+
+  it('keeps a genuine half-plate', () => {
+    expect(targetLine({ sets: 3, targetReps: 8, targetWeight: '62.50' })).toBe('3 × 8 @ 62.5 kg');
+  });
+});
