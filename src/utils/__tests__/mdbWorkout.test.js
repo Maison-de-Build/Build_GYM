@@ -295,3 +295,215 @@ describe('relativeDateTime', () => {
     expect(relativeDateTime('not a date', now)).toBeNull();
   });
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * Calendar browsing — added when the month dropdown and day selection were
+ * fixed. Regression guards for two shipped bugs:
+ *   · the strip was hard-wired to today, so no other date was reachable
+ *   · overlapping /member/instances buckets double-counted a day's workouts
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+import {
+  flattenInstances, groupInstancesByDate, parseIsoLocal, dayPermissions,
+  monthBounds, monthGrid, monthTitle, shiftMonth,
+} from '../mdbWorkout.js';
+
+describe('flattenInstances', () => {
+  it('merges every bucket the endpoint can return', () => {
+    const out = flattenInstances({
+      today: [{ id: 1 }], upcoming: [{ id: 2 }], history: [{ id: 3 }], range: [{ id: 4 }],
+    });
+    expect(out.map((r) => r.id).sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  it('passes a flat array straight through', () => {
+    expect(flattenInstances([{ id: 1 }])).toHaveLength(1);
+  });
+
+  it('tolerates null / empty input', () => {
+    expect(flattenInstances(null)).toEqual([]);
+    expect(flattenInstances({})).toEqual([]);
+  });
+});
+
+describe('groupInstancesByDate', () => {
+  it('de-duplicates a row that appears in more than one bucket', () => {
+    // A workout completed today is returned in BOTH `today` and `history`, and
+    // the month range repeats it again — without de-duping the day would show
+    // the same session three times.
+    const row = { id: 'w1', workoutDate: '2026-09-06', status: 'completed' };
+    const byDate = groupInstancesByDate({ today: [row], history: [row], range: [row] });
+    expect(byDate.get('2026-09-06')).toHaveLength(1);
+  });
+
+  it('keeps genuinely distinct workouts on the same day', () => {
+    const byDate = groupInstancesByDate([
+      { id: 'a', workoutDate: '2026-09-06' },
+      { id: 'b', workoutDate: '2026-09-06' },
+    ]);
+    expect(byDate.get('2026-09-06')).toHaveLength(2);
+  });
+
+  it('trims a full timestamp down to the calendar date', () => {
+    const byDate = groupInstancesByDate([{ id: 'a', workoutDate: '2026-09-06T00:00:00.000Z' }]);
+    expect(byDate.has('2026-09-06')).toBe(true);
+  });
+});
+
+describe('parseIsoLocal', () => {
+  it('parses as a local date, not UTC', () => {
+    // new Date('2026-09-04') is UTC midnight — in a negative-offset zone that is
+    // 3 Sep locally, which would select the wrong calendar cell.
+    const d = parseIsoLocal('2026-09-04');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(8);
+    expect(d.getDate()).toBe(4);
+  });
+});
+
+describe('buildDayStrip — anchored browsing', () => {
+  const now = new Date(2026, 8, 6); // Sun 6 Sep
+
+  it('centres on today when no anchor is given', () => {
+    const days = buildDayStrip({}, now);
+    expect(days[4].iso).toBe('2026-09-06');
+    expect(days[4].isToday).toBe(true);
+  });
+
+  it('re-centres on the anchor when one is given', () => {
+    const days = buildDayStrip({}, now, '2026-06-15');
+    expect(days).toHaveLength(7);
+    expect(days[4].iso).toBe('2026-06-15');
+    expect(days[0].iso).toBe('2026-06-11');
+    expect(days[6].iso).toBe('2026-06-17');
+  });
+
+  it('keeps isToday measured against the real clock, never the anchor', () => {
+    // This is what protects the write rules: browsing to June must not make a
+    // June day "today" and unlock logging on it.
+    const days = buildDayStrip({}, now, '2026-06-15');
+    expect(days.every((d) => d.isToday === false)).toBe(true);
+  });
+
+  it('flags past and future correctly around today', () => {
+    const days = buildDayStrip({}, now);
+    expect(days[0].isPast).toBe(true);
+    expect(days[4].isPast).toBe(false);
+    expect(days[4].isFuture).toBe(false);
+    expect(days[6].isFuture).toBe(true);
+  });
+
+  it('picks up workouts supplied by a month-range fetch', () => {
+    const days = buildDayStrip(
+      { range: [{ id: 'x', workoutDate: '2026-06-15', status: 'completed' }] },
+      now,
+      '2026-06-15',
+    );
+    expect(days[4].status).toBe('completed');
+    expect(days[4].instances).toHaveLength(1);
+  });
+
+  it('handles an anchor that crosses a month boundary', () => {
+    const days = buildDayStrip({}, now, '2026-03-02');
+    expect(days[0].iso).toBe('2026-02-26');
+    expect(days[6].iso).toBe('2026-03-04');
+  });
+});
+
+describe('dayPermissions', () => {
+  it('allows logging only on today', () => {
+    expect(dayPermissions({ isToday: true }).canLog).toBe(true);
+    expect(dayPermissions({ isPast: true }).canLog).toBe(false);
+    expect(dayPermissions({ isFuture: true }).canLog).toBe(false);
+  });
+
+  it('allows scheduling today and in the future, never in the past', () => {
+    // Mirrors the backend: self-assign accepts today..+14 only.
+    expect(dayPermissions({ isToday: true }).canSchedule).toBe(true);
+    expect(dayPermissions({ isFuture: true }).canSchedule).toBe(true);
+    expect(dayPermissions({ isPast: true }).canSchedule).toBe(false);
+  });
+
+  it('states a reason for every locked day and none for today', () => {
+    expect(dayPermissions({ isToday: true }).reason).toBeNull();
+    expect(dayPermissions({ isPast: true }).reason).toMatch(/view only/i);
+    expect(dayPermissions({ isFuture: true }).reason).toMatch(/scheduled/i);
+  });
+
+  it('locks everything when there is no day at all', () => {
+    expect(dayPermissions(null)).toEqual({ canLog: false, canSchedule: false, reason: null });
+  });
+});
+
+describe('monthBounds', () => {
+  it('spans the whole month', () => {
+    expect(monthBounds('2026-09-15')).toEqual({ from: '2026-09-01', to: '2026-09-30' });
+    expect(monthBounds('2026-02-10')).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+  });
+
+  it('handles a leap February', () => {
+    expect(monthBounds('2028-02-10')).toEqual({ from: '2028-02-01', to: '2028-02-29' });
+  });
+});
+
+describe('monthGrid', () => {
+  const now = new Date(2026, 8, 6);
+
+  it('lays the month out in Monday-first weeks of exactly 7 cells', () => {
+    const weeks = monthGrid('2026-09-01', new Map(), now);
+    expect(weeks.every((w) => w.length === 7)).toBe(true);
+    // 1 Sep 2026 is a Tuesday → one leading blank.
+    expect(weeks[0][0]).toBeNull();
+    expect(weeks[0][1].day).toBe(1);
+  });
+
+  it('includes every day of the month exactly once', () => {
+    const days = monthGrid('2026-09-01', new Map(), now).flat().filter(Boolean).map((c) => c.day);
+    expect(days).toHaveLength(30);
+    expect(new Set(days).size).toBe(30);
+  });
+
+  it('marks today, past days and workout status', () => {
+    const byDate = groupInstancesByDate([
+      { id: 'a', workoutDate: '2026-09-04', status: 'completed' },
+      { id: 'b', workoutDate: '2026-09-08', status: 'assigned' },
+    ]);
+    const cells = monthGrid('2026-09-01', byDate, now).flat().filter(Boolean);
+    expect(cells.find((c) => c.day === 6).isToday).toBe(true);
+    expect(cells.find((c) => c.day === 4).isPast).toBe(true);
+    expect(cells.find((c) => c.day === 4).status).toBe('completed');
+    expect(cells.find((c) => c.day === 8).status).toBe('assigned');
+    expect(cells.find((c) => c.day === 9).status).toBeNull();
+  });
+
+  it('starts a Monday month with no leading blanks', () => {
+    // 1 Jun 2026 is a Monday.
+    expect(monthGrid('2026-06-01', new Map(), now)[0][0].day).toBe(1);
+  });
+});
+
+describe('shiftMonth', () => {
+  it('steps forward and back', () => {
+    expect(shiftMonth('2026-09-15', 1)).toBe('2026-10-15');
+    expect(shiftMonth('2026-09-15', -1)).toBe('2026-08-15');
+  });
+
+  it('crosses the year boundary', () => {
+    expect(shiftMonth('2026-01-15', -1)).toBe('2025-12-15');
+    expect(shiftMonth('2026-12-15', 1)).toBe('2027-01-15');
+  });
+
+  it('clamps a day that does not exist in the target month', () => {
+    // 31 Jan −1 month must not roll into March.
+    expect(shiftMonth('2026-01-31', 1)).toBe('2026-02-28');
+    expect(shiftMonth('2028-01-31', 1)).toBe('2028-02-29');
+    expect(shiftMonth('2026-03-31', -1)).toBe('2026-02-28');
+  });
+});
+
+describe('monthTitle', () => {
+  it('renders month and year', () => {
+    expect(monthTitle('2026-09-06')).toBe('September 2026');
+    expect(monthTitle('2026-01-01')).toBe('January 2026');
+  });
+});

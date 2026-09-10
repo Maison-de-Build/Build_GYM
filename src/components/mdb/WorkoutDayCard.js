@@ -5,6 +5,12 @@
  * stat blocks fenced by hairlines, and the dual-state CTA: violet→cyan gradient
  * "BEGIN WORKOUT" while assigned, flat #1A1A1E "COMPLETED" with an amber tick
  * once done.
+ *
+ * `readOnly` covers days the member is only browsing. Logging is today-only —
+ * a past session is a record and a future one is a plan — so the CTA is replaced
+ * by a stated reason rather than a disabled-looking button the member will keep
+ * tapping. A completed workout still shows COMPLETED on any day, because that is
+ * a status, not an action.
  */
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
@@ -17,7 +23,7 @@ import {
   sequenceOf, estimatedMinutes, intensityLabel, focusLabel, initialsOf,
 } from '../../utils/mdbWorkout';
 
-export default function WorkoutDayCard({ workout, onBegin }) {
+export default function WorkoutDayCard({ workout, onBegin, readOnly = false, readOnlyReason }) {
   const sequence = sequenceOf(workout);
   const est = estimatedMinutes(sequence);
   const intensity = intensityLabel(sequence);
@@ -55,9 +61,16 @@ export default function WorkoutDayCard({ workout, onBegin }) {
         <Stat icon="target" tint={MC.warm} value={focus || '—'} label="Focus" small />
       </View>
 
-      {isCompleted
-        ? <CompletedCta onPress={onBegin} />
-        : <PrimaryCta label={inProgress ? 'Resume Workout' : 'Begin Workout'} onPress={onBegin} />}
+      {isCompleted ? (
+        <CompletedCta onPress={readOnly ? undefined : onBegin} />
+      ) : readOnly ? (
+        <View style={s.lockedCta}>
+          <MdbIcon name="lock" size={13} color={MC.textTertiary} />
+          <Text style={s.lockedText}>{readOnlyReason || 'View only'}</Text>
+        </View>
+      ) : (
+        <PrimaryCta label={inProgress ? 'Resume Workout' : 'Begin Workout'} onPress={onBegin} />
+      )}
     </LuxuryCard>
   );
 }
@@ -110,5 +123,15 @@ const s = StyleSheet.create({
   statLabel: {
     fontFamily: MF.medium, fontSize: 10, letterSpacing: 0.8,
     textTransform: 'uppercase', color: MC.textTertiary, marginTop: 1,
+  },
+
+  lockedCta: {
+    height: 46, borderRadius: MR.button,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1, borderColor: MC.cardBorder,
+  },
+  lockedText: {
+    fontFamily: MF.medium, fontSize: 12, letterSpacing: 0.4, color: MC.textTertiary,
   },
 });

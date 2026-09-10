@@ -9,7 +9,7 @@
  * Data: GET /member/instances (today · upcoming · history) and
  *       GET /member/muscle-recovery. Nothing here is mocked.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, RefreshControl, ActivityIndicator,
@@ -19,16 +19,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MC, MF, MR, MS } from '../../theme/mdbKit';
 import MdbIcon from '../../components/mdb/MdbIcon';
 import DateNavigator from '../../components/mdb/DateNavigator';
+import MdbMonthPicker from '../../components/mdb/MdbMonthPicker';
 import { MuscleRecoveryStrip, MuscleDetailSheet } from '../../components/mdb/MuscleRecovery';
 import {
   BackPill, LuxuryCard, ExerciseLetter, BrandFooter,
 } from '../../components/mdb/MdbPrimitives';
 import WorkoutDayCard from '../../components/mdb/WorkoutDayCard';
 import MdbSecondaryNav from '../../components/mdb/MdbSecondaryNav';
-import { fetchInstances, fetchMuscleRecovery } from '../../services/workoutService';
+import { fetchInstances, fetchInstancesRange, fetchMuscleRecovery } from '../../services/workoutService';
 import {
-  buildDayStrip, sequenceOf, targetLoadKg, totalSets,
-  monthLabel, isoDate, relativeDateTime,
+  buildDayStrip, sequenceOf, targetLoadKg, totalSets, groupInstancesByDate, flattenInstances, parseIsoLocal,
+  dayPermissions, monthBounds, monthTitle, isoDate, relativeDateTime,
 } from '../../utils/mdbWorkout';
 
 export default function MdbWorkoutCalendarScreen({ navigation }) {
@@ -36,6 +37,17 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
   const [instances, setInstances] = useState({ today: [], upcoming: [], history: [] });
   const [recovery, setRecovery] = useState([]);
   const [selectedIso, setSelectedIso] = useState(() => isoDate(new Date()));
+  // Month browsing: `monthIso` is any date inside the month on show, and
+  // `monthRows` holds instances fetched for that window (the default buckets
+  // only cover today / next 7 / last 30).
+  // The strip's window is anchored separately from the selection: tapping a day
+  // in the strip must not re-centre it under the member's finger. Only the month
+  // picker moves the anchor.
+  const [anchorIso, setAnchorIso] = useState(() => isoDate(new Date()));
+  const [monthIso, setMonthIso] = useState(() => isoDate(new Date()));
+  const [monthRows, setMonthRows] = useState([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [monthLoading, setMonthLoading] = useState(false);
   const [openMuscle, setOpenMuscle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,8 +67,61 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
     setRefreshing(false);
   }, [load]);
 
-  const days = useMemo(() => buildDayStrip(instances), [instances]);
-  const selectedDay = days.find((d) => d.iso === selectedIso) || days.find((d) => d.isToday);
+  // Pull a month's instances on demand, so any date the member browses to has
+  // real data behind it rather than an empty cell.
+  //
+  // The window is padded by a week either side: the 7-day strip is centred on
+  // the picked date, so anchoring on the 1st or the 31st makes it straddle the
+  // neighbouring month. Without the padding those days would render as rest
+  // days purely because they were never fetched.
+  const monthReq = useRef(0);
+  const loadMonth = useCallback(async (iso) => {
+    const { from, to } = monthBounds(iso);
+    const req = ++monthReq.current;
+    setMonthLoading(true);
+    try {
+      const rows = await fetchInstancesRange(padIso(from, -7), padIso(to, 7));
+      // Stepping months quickly can land responses out of order; only the most
+      // recent request may write, or an older month would overwrite the new one.
+      if (req === monthReq.current) setMonthRows(rows || []);
+    } catch {
+      if (req === monthReq.current) setMonthRows([]); // strip still renders from the default buckets
+    } finally {
+      if (req === monthReq.current) setMonthLoading(false);
+    }
+  }, []);
+
+  const openPicker = useCallback(() => {
+    setPickerOpen(true);
+    loadMonth(monthIso);
+  }, [loadMonth, monthIso]);
+
+  const changeMonth = useCallback((iso) => {
+    setMonthIso(iso);
+    loadMonth(iso);
+  }, [loadMonth]);
+
+  const pickDate = useCallback((iso) => {
+    setSelectedIso(iso);
+    setAnchorIso(iso);
+    setMonthIso(iso);
+    setPickerOpen(false);
+  }, []);
+
+  // Merge the default buckets with anything fetched for the browsed month.
+  const allRows = useMemo(
+    () => [...flattenInstances(instances), ...monthRows],
+    [instances, monthRows],
+  );
+  const byDate = useMemo(() => groupInstancesByDate(allRows), [allRows]);
+  const days = useMemo(
+    () => buildDayStrip(allRows, new Date(), anchorIso),
+    [allRows, anchorIso],
+  );
+  const selectedDay = days.find((d) => d.iso === selectedIso)
+    || days.find((d) => d.iso === anchorIso)
+    || days.find((d) => d.isToday);
+  const perms = dayPermissions(selectedDay);
   const workout = selectedDay?.instances?.[0] || null;
 
   const sequence = useMemo(() => (workout ? sequenceOf(workout) : []), [workout]);
@@ -80,7 +145,9 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
   const sets = totalSets(sequence);
 
   const begin = () => {
-    if (!workout) return;
+    // Belt and braces: the CTA is already replaced on a non-today day, but the
+    // guard stays so no future caller can start a session for another date.
+    if (!workout || !perms.canLog) return;
     navigation.navigate('MdbActiveSession', { instanceId: workout.id, instance: workout });
   };
 
@@ -91,8 +158,14 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
       {/* ── Fixed: floating back pill + month header (52pt) ──────────────── */}
       <View style={[s.header, { marginTop: insets.top }]}>
         <BackPill onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs'))} />
-        <TouchableOpacity style={s.monthChip} activeOpacity={0.7}>
-          <Text style={s.monthText}>{monthLabel()}</Text>
+        <TouchableOpacity
+          style={s.monthChip}
+          activeOpacity={0.7}
+          onPress={openPicker}
+          accessibilityRole="button"
+          accessibilityLabel="Choose a month"
+        >
+          <Text style={s.monthText}>{monthTitle(selectedIso)}</Text>
           <MdbIcon name="chevron-down" size={14} color={MC.textTertiary} />
         </TouchableOpacity>
         <View style={s.headerSpacer} />
@@ -117,11 +190,20 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
         >
           {/* ── TODAY'S WORKOUT CARD ───────────────────────────────────── */}
           {workout ? (
-            <WorkoutDayCard workout={workout} onBegin={begin} />
+            <WorkoutDayCard
+              workout={workout}
+              onBegin={begin}
+              readOnly={!perms.canLog}
+              readOnlyReason={perms.reason}
+            />
           ) : (
             <LuxuryCard style={s.restCard}>
               <Text style={s.restTitle}>Rest day</Text>
-              <Text style={s.restSub}>No workout assigned for this date.</Text>
+              <Text style={s.restSub}>
+                {selectedDay?.isToday
+                  ? 'No workout assigned for today.'
+                  : `No workout on ${dayLabel(selectedDay)}.`}
+              </Text>
             </LuxuryCard>
           )}
 
@@ -196,9 +278,36 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
         </ScrollView>
       )}
 
+      <MdbMonthPicker
+        visible={pickerOpen}
+        monthIso={monthIso}
+        selectedIso={selectedIso}
+        byDate={byDate}
+        loading={monthLoading}
+        onMonthChange={changeMonth}
+        onSelect={pickDate}
+        onClose={() => setPickerOpen(false)}
+      />
+
       <MuscleDetailSheet muscle={openMuscle} onClose={() => setOpenMuscle(null)} />
     </View>
   );
+}
+
+/** "Fri 12 Sep" for the rest-day line on a browsed date. */
+function dayLabel(day) {
+  if (!day) return 'this date';
+  const d = new Date(`${day.iso}T00:00:00`);
+  return isNaN(d.getTime())
+    ? 'this date'
+    : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** Shift an ISO date by N days, for padding a fetch window. */
+function padIso(iso, days) {
+  const d = parseIsoLocal(iso);
+  d.setDate(d.getDate() + days);
+  return isoDate(d);
 }
 
 const s = StyleSheet.create({

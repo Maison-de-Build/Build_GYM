@@ -195,6 +195,12 @@ export const useAuthStore = create((set, get) => ({
     import('./chatStore')
       .then((m) => m.useChatStore.getState().reset())
       .catch(() => {});
+    // Drop the resolved PT/freestyle mode, so the next member to sign in on this
+    // handset is resolved fresh rather than inheriting the outgoing user's mode.
+    // Lazily imported for the same store-cycle reason as the two above.
+    import('../hooks/useMemberMode')
+      .then((m) => m.resetMemberMode())
+      .catch(() => {});
     // Clear GA4 identity so the next session starts clean.
     setUserId(null).catch(() => {});
   },

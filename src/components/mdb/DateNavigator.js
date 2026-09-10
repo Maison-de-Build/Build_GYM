@@ -8,6 +8,10 @@
  *                       violet→cyan gradient
  *   · 16px indicator    amber tick when that day's workout is completed,
  *                       6px amber dot when one is assigned, empty on rest days
+ *
+ * Today always keeps the gradient fill — it is the only day that can be logged,
+ * so it must stay identifiable while the member browses. A different selected
+ * day gets a ring instead, which reads as "looking at" rather than "active".
  */
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
@@ -38,7 +42,7 @@ export default function DateNavigator({ days, selectedKey, onSelect }) {
                 </LinearGradient>
               ) : (
                 <View style={[s.bubble, selected && s.bubbleSelected]}>
-                  <Text style={s.dateText}>{d.date}</Text>
+                  <Text style={[s.dateText, d.isPast && !selected && s.dateTextPast]}>{d.date}</Text>
                 </View>
               )}
 
@@ -96,8 +100,8 @@ const s = StyleSheet.create({
   },
   bubbleSelected: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderColor: MC.violetLight,
+    backgroundColor: 'rgba(120,61,236,0.18)',
   },
   dateText: {
     fontFamily: MF.monoSemi,
@@ -106,6 +110,7 @@ const s = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   dateTextToday: { color: MC.white },
+  dateTextPast: { color: MC.textTertiary },
 
   indicator: { height: 16, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: MC.warm },

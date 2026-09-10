@@ -65,6 +65,14 @@ export const fetchInstances = async () => {
   return data.data; // { today, upcoming, history }
 };
 
+// Calendar month browser — instances for an explicit window. The unparameterised
+// call above is anchored to "now" (today / next 7 / last 30), so it cannot answer
+// for any other month.
+export const fetchInstancesRange = async (from, to) => {
+  const { data } = await api.get('/member/instances', { params: { from, to } });
+  return data.data?.range || [];
+};
+
 export const startInstance = async (id) => {
   const { data } = await api.post(`/member/instances/${id}/start`);
   return data.data;
