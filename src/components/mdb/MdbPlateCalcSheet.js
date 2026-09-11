@@ -31,7 +31,7 @@ const PLATE_STYLE = {
   1.25: { width: 4,  height: 12, bg: '#8E828D', fg: '#FFFFFF' },
 };
 
-export default function MdbPlateCalcSheet({ exercise, targetWeight, onClose }) {
+export default function MdbPlateCalcSheet({ exercise, targetWeight, onConfirm, onClose }) {
   const open = !!exercise;
   const [memberBar, setMemberBar] = useState(DEFAULT_BAR_KG);
   const [target, setTarget] = useState(Number(targetWeight) || 0);
@@ -68,7 +68,11 @@ export default function MdbPlateCalcSheet({ exercise, targetWeight, onClose }) {
             <View style={s.handle} />
           </TouchableOpacity>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 0 }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ gap: 0 }}
+          >
             {/* Header */}
             <View style={s.head}>
               <View style={{ flex: 1 }}>
@@ -154,7 +158,11 @@ export default function MdbPlateCalcSheet({ exercise, targetWeight, onClose }) {
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={s.confirm} onPress={onClose} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.confirm}
+            onPress={() => { onConfirm?.(target); onClose(); }}
+            activeOpacity={0.85}
+          >
             <Text style={s.confirmText}>Confirm Load</Text>
           </TouchableOpacity>
         </Pressable>

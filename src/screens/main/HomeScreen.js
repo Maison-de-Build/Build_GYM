@@ -352,7 +352,14 @@ export default function HomeScreen({ navigation }) {
                 style={[styles.quickTile, cs && styles.quickTileDisabled]}
                 activeOpacity={0.85}
                 disabled={cs}
-                onPress={() => navigation.push(q.route)}
+                onPress={() => {
+                  // MDB's screens all share one native-stack, so pushing here
+                  // stacks a duplicate Hub under whatever the member already
+                  // had open inside Training — navigate reuses the existing
+                  // instance instead. Every other tile keeps push().
+                  if (q.route === 'MdbTrainingHub') navigation.navigate(q.route);
+                  else navigation.push(q.route);
+                }}
               >
                 <MaterialIcons
                   name={q.icon}

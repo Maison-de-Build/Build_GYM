@@ -188,6 +188,7 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
                 if (!perms.canLog) return;
                 navigation.navigate('MdbActiveSession', { instanceId: workout.id, instance: workout });
               }}
+              onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: workout.id })}
             />
           ) : (
             <LuxuryCard style={s.emptyCard}>

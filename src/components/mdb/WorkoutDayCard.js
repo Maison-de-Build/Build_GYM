@@ -23,7 +23,7 @@ import {
   sequenceOf, estimatedMinutes, intensityLabel, focusLabel, initialsOf,
 } from '../../utils/mdbWorkout';
 
-export default function WorkoutDayCard({ workout, onBegin, readOnly = false, readOnlyReason }) {
+export default function WorkoutDayCard({ workout, onBegin, onViewCompleted, readOnly = false, readOnlyReason }) {
   const sequence = sequenceOf(workout);
   const est = estimatedMinutes(sequence);
   const intensity = intensityLabel(sequence);
@@ -62,7 +62,7 @@ export default function WorkoutDayCard({ workout, onBegin, readOnly = false, rea
       </View>
 
       {isCompleted ? (
-        <CompletedCta onPress={readOnly ? undefined : onBegin} />
+        <CompletedCta onPress={onViewCompleted} />
       ) : readOnly ? (
         <View style={s.lockedCta}>
           <MdbIcon name="lock" size={13} color={MC.textTertiary} />

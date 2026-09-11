@@ -193,6 +193,7 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
             <WorkoutDayCard
               workout={workout}
               onBegin={begin}
+              onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: workout.id })}
               readOnly={!perms.canLog}
               readOnlyReason={perms.reason}
             />

@@ -25,7 +25,7 @@ import { isoDate } from '../../utils/mdbWorkout';
 
 export default function MdbWorkoutSummaryScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const { workoutLogId, summary } = route.params || {};
+  const { workoutLogId, summary, live = false } = route.params || {};
 
   const [detail, setDetail] = useState(summary || null);
   const [wellnessDate, setWellnessDate] = useState(null);
@@ -35,12 +35,17 @@ export default function MdbWorkoutSummaryScreen({ route, navigation }) {
     (async () => {
       try {
         if (!summary) setDetail(await fetchWorkoutDetail(workoutLogId));
-        // A.5 — the survey appears only on the day's first completed workout.
-        try {
-          const date = isoDate(new Date());
-          const already = await fetchWellnessToday(date);
-          if (!already) setWellnessDate(date);
-        } catch { /* survey is optional */ }
+        // A.5 — the survey appears only on the day's first completed workout,
+        // and only when this screen is the genuine just-finished landing (not
+        // browsed from History/Calendar) — otherwise a past session's summary
+        // could save today's wellness mislabeled against the wrong session.
+        if (live) {
+          try {
+            const date = isoDate(new Date());
+            const already = await fetchWellnessToday(date);
+            if (!already) setWellnessDate(date);
+          } catch { /* survey is optional */ }
+        }
       } catch { /* fall through to whatever we have */ }
       finally { setLoading(false); }
     })();

@@ -152,6 +152,9 @@ export default function MdbWorkoutHistoryScreen({ navigation }) {
 /* ── One session row ─────────────────────────────────────────────────────── */
 function SessionCard({ row, onPress }) {
   const external = row.source && row.source !== 'app';
+  // The list endpoint doesn't (and shouldn't) re-derive this — the snapshot
+  // already carries the planned exercise list on every row.
+  const exerciseCount = row.exerciseCount || row.snapshot?.exercises?.length || 0;
   const stats = external
     ? [
         row.durationMinutes ? `${row.durationMinutes} min` : null,
@@ -162,7 +165,7 @@ function SessionCard({ row, onPress }) {
         row.durationMinutes ? `${row.durationMinutes} min` : null,
         row.totalVolume ? `${Math.round(Number(row.totalVolume)).toLocaleString()} kg` : null,
         row.setCount ? `${row.setCount} sets` : null,
-        row.exerciseCount ? `${row.exerciseCount} exercises` : null,
+        exerciseCount ? `${exerciseCount} exercises` : null,
         row.finalCalorieValue != null ? `${Math.round(Number(row.finalCalorieValue))} kcal` : null,
       ];
 

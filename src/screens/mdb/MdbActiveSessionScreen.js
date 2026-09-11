@@ -37,8 +37,12 @@ import {
 import { sequenceOf, targetLine } from '../../utils/mdbWorkout';
 import { secondsToMmss } from '../../utils/measurement';
 
-const SET_TYPES = ['working', 'warmup', 'drop', 'failure'];
-const SET_TYPE_LABEL = { working: 'Working', warmup: 'Warm-up', drop: 'Drop', failure: 'Failure' };
+// DB truth (set_logs.set_type enum): normal | warmup | drop | failure. There is
+// no 'working' value — sending it silently fails every insert (Postgres
+// rejects the enum, the route 500s), which is why a whole session of sets
+// could show as logged in the UI and never actually land in the database.
+const SET_TYPES = ['normal', 'warmup', 'drop', 'failure'];
+const SET_TYPE_LABEL = { normal: 'Working', warmup: 'Warm-up', drop: 'Drop', failure: 'Failure' };
 
 export default function MdbActiveSessionScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
@@ -49,7 +53,7 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
   const [exercises, setExercises] = useState([]);
   const [setsByExercise, setSetsByExercise] = useState({});
   const [activeIndex, setActiveIndex] = useState(0);
-  const [setType, setSetType] = useState('working');
+  const [setType, setSetType] = useState('normal');
   const [reps, setReps] = useState('');
   const [weight, setWeight] = useState('');
   const [loading, setLoading] = useState(true);
@@ -172,6 +176,45 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
     }
   };
 
+  /**
+   * One more attempt at every set still flagged `unsynced`, run right before
+   * finishing. The idempotency key is deterministic (log id + exercise +
+   * set number), so retrying is always safe even if an earlier attempt
+   * actually landed and only the response was lost.
+   *
+   * Returns the count still failing after the retry, so `finish()` can warn
+   * before completing a workout with missing data instead of doing it silently
+   * — which is exactly how the set-type enum bug went unnoticed for a week.
+   */
+  const retryUnsyncedSets = async () => {
+    const pending = [];
+    for (const [exerciseId, sets] of Object.entries(setsByExercise)) {
+      for (const st of sets) if (st.unsynced) pending.push({ exerciseId, ...st });
+    }
+    if (!pending.length) return 0;
+
+    let stillFailing = 0;
+    for (const st of pending) {
+      const idempotencyKey = `${log.id}:${st.exerciseId}:${st.setNumber}`;
+      try {
+        await logSet(log.id, {
+          exerciseId: st.exerciseId, setNumber: st.setNumber, setType: st.setType,
+          actualReps: st.actualReps, actualWeight: st.actualWeight,
+          actualTimeSeconds: st.actualTimeSeconds, actualDistance: st.actualDistance,
+          idempotencyKey, clientTs: new Date().toISOString(),
+        });
+        setSetsByExercise((prev) => ({
+          ...prev,
+          [st.exerciseId]: (prev[st.exerciseId] || []).map((s) =>
+            s.setNumber === st.setNumber ? { ...s, unsynced: false } : s),
+        }));
+      } catch {
+        stillFailing += 1;
+      }
+    }
+    return stillFailing;
+  };
+
   const finish = () => {
     if (finishing || !log?.id) return;
     Alert.alert('Finish workout?', 'Your logged sets will be saved and the session closed.', [
@@ -182,8 +225,22 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
         onPress: async () => {
           setFinishing(true);
           try {
+            const stillFailing = await retryUnsyncedSets();
+            if (stillFailing > 0) {
+              const proceed = await new Promise((resolve) => {
+                Alert.alert(
+                  'Some sets could not be saved',
+                  `${stillFailing} set${stillFailing === 1 ? '' : 's'} failed to sync and won't be included in this workout. Finish anyway?`,
+                  [
+                    { text: 'Keep going', style: 'cancel', onPress: () => resolve(false) },
+                    { text: 'Finish anyway', style: 'destructive', onPress: () => resolve(true) },
+                  ],
+                );
+              });
+              if (!proceed) { setFinishing(false); return; }
+            }
             await completeWorkout(log.id);
-            navigation.replace('MdbWorkoutSummary', { workoutLogId: log.id });
+            navigation.replace('MdbWorkoutSummary', { workoutLogId: log.id, live: true });
           } catch (e) {
             setFinishing(false);
             Alert.alert('Error', e?.response?.data?.message || 'Could not finish workout');
@@ -308,6 +365,7 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
       <MdbPlateCalcSheet
         exercise={plateFor}
         targetWeight={Number(weight) || plateFor?.targetWeight || 0}
+        onConfirm={(w) => setWeight(String(w))}
         onClose={() => setPlateFor(null)}
       />
     </View>
