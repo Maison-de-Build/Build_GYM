@@ -20,7 +20,9 @@ import ActiveOrderBar from '../../components/ActiveOrderBar';
 import NotificationPermissionBanner from '../../components/NotificationPermissionBanner';
 import WorkoutDayCard from '../../components/mdb/WorkoutDayCard';
 import WorkoutEmptyState from '../../components/mdb/WorkoutEmptyState';
+import { LuxuryCard } from '../../components/mdb/MdbPrimitives';
 import MdbIcon from '../../components/mdb/MdbIcon';
+import { MC, MF as MdbFont } from '../../theme/mdbKit';
 import useMemberMode from '../../hooks/useMemberMode';
 
 // Mockup accent palette (kept as literals — multi-colour KPI / quick-access tiles).
@@ -30,6 +32,13 @@ const CYAN  = '#00CED1';
 const SILVER = '#C8C6C8';
 
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+// "QA Bench Primer + Custom Workout" for 1-2 scheduled today, else "N Workouts" —
+// same join rule the share card uses for a multi-workout day.
+function combinedWorkoutTitle(instances) {
+  const names = instances.map((w) => w.snapshot?.name || w.sourceTemplateName).filter(Boolean);
+  return names.length <= 2 ? names.join(' + ') : `${instances.length} Workouts`;
+}
 
 // Friendly countdown for the upcoming-trial card ("in 2 days", "in 3 hrs").
 function countdownLabel(iso) {
@@ -253,16 +262,42 @@ export default function HomeScreen({ navigation }) {
             are browse/schedule only now. */}
         <View style={styles.sectionBlock}>
           <Text style={styles.eyebrow}>TODAY'S WORKOUT</Text>
-          {todayInstances.length > 0 ? (
+          {todayInstances.length === 1 ? (
             <View style={{ gap: 12, marginTop: 8 }}>
-              {todayInstances.map((w) => (
-                <WorkoutDayCard
-                  key={w.id}
-                  workout={w}
-                  onBegin={() => navigation.navigate('MdbActiveSession', { instanceId: w.id, instance: w })}
-                  onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: w.id, live: true })}
-                />
-              ))}
+              <WorkoutDayCard
+                workout={todayInstances[0]}
+                onBegin={() => navigation.navigate('MdbActiveSession', { instanceId: todayInstances[0].id, instance: todayInstances[0] })}
+                onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: todayInstances[0].id, live: true })}
+              />
+              {!isPt && (
+                <TouchableOpacity
+                  style={styles.addMoreRow}
+                  onPress={() => navigation.navigate('MdbTemplateBrowser', { date: isoDate(now) })}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
+                  <Text style={styles.addMoreText}>Add another workout</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : todayInstances.length > 1 ? (
+            // Several scheduled today (e.g. a template + a custom exercise
+            // bundle) — one combined card rather than stacking N, with the
+            // per-workout Begin/Resume/view actions living on their own page.
+            <View style={{ gap: 12, marginTop: 8 }}>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('MdbTodaysWorkouts')}>
+                <LuxuryCard style={styles.multiCard}>
+                  <View style={styles.multiCardHead}>
+                    <Text style={styles.multiCardTitle} numberOfLines={2}>
+                      {combinedWorkoutTitle(todayInstances)}
+                    </Text>
+                    <MdbIcon name="chevron-right" size={16} color={MC.textTertiary} />
+                  </View>
+                  <Text style={styles.multiCardSub}>
+                    {todayInstances.length} workouts scheduled today
+                  </Text>
+                </LuxuryCard>
+              </TouchableOpacity>
               {!isPt && (
                 <TouchableOpacity
                   style={styles.addMoreRow}
@@ -601,6 +636,10 @@ const styles = StyleSheet.create({
 
   // Today's workout
   sectionBlock: { marginBottom: 16 },
+  multiCard: { padding: 16, gap: 6 },
+  multiCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  multiCardTitle: { flex: 1, fontFamily: MdbFont.semibold, fontSize: 16, color: MC.text, letterSpacing: -0.2 },
+  multiCardSub: { fontFamily: MdbFont.regular, fontSize: 12, color: MC.textTertiary },
   addMoreRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     height: 44, borderRadius: 14,

@@ -299,7 +299,12 @@ export default function MdbTemplateBrowserScreen({ route, navigation }) {
       ) : (
         <>
           {/* ── Muscle-group tabs ──────────────────────────────────────── */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.muscleTabRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.muscleTabScroll}
+            contentContainerStyle={s.muscleTabRow}
+          >
             {MUSCLE_GROUPS.map((g) => (
               <TouchableOpacity
                 key={g}
@@ -473,6 +478,11 @@ const s = StyleSheet.create({
   cardChevron: { paddingRight: 14, paddingVertical: 16, paddingLeft: 4 },
 
   /* Exercises tab */
+  // Unwrapped horizontal ScrollViews sitting next to a flex:1 sibling (the
+  // exercise list below) can stretch to fill the remaining screen height
+  // instead of sizing to their content — flexGrow/flexShrink 0 pins it to
+  // its natural (tab-row) height.
+  muscleTabScroll: { flexGrow: 0, flexShrink: 0 },
   muscleTabRow: { flexDirection: 'row', gap: 8, paddingHorizontal: MS.hMargin, paddingVertical: 10 },
   muscleTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: MR.pill, backgroundColor: 'rgba(255,255,255,0.04)' },
   muscleTabOn: { backgroundColor: MC.violet },

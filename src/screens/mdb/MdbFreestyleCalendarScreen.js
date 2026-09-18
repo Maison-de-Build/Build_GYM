@@ -181,7 +181,7 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
                   key={w.id}
                   workout={w}
                   readOnly
-                  readOnlyReason={selectedDay?.isToday ? 'Open from Home to begin' : perms.reason}
+                  readOnlyReason={selectedDay?.isToday ? null : perms.reason}
                   onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: w.id })}
                 />
               ))}

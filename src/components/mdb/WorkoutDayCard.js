@@ -64,10 +64,15 @@ export default function WorkoutDayCard({ workout, onBegin, onViewCompleted, read
       {isCompleted ? (
         <CompletedCta onPress={onViewCompleted} />
       ) : readOnly ? (
-        <View style={s.lockedCta}>
-          <MdbIcon name="lock" size={13} color={MC.textTertiary} />
-          <Text style={s.lockedText}>{readOnlyReason || 'View only'}</Text>
-        </View>
+        // readOnlyReason === null is a deliberate "say nothing" — e.g. today's
+        // card on the Training calendar, where logging moved to Home and a
+        // "view only" chip would just be noise pointing at itself.
+        readOnlyReason === null ? null : (
+          <View style={s.lockedCta}>
+            <MdbIcon name="lock" size={13} color={MC.textTertiary} />
+            <Text style={s.lockedText}>{readOnlyReason || 'View only'}</Text>
+          </View>
+        )
       ) : (
         <PrimaryCta label={inProgress ? 'Resume Workout' : 'Begin Workout'} onPress={onBegin} />
       )}

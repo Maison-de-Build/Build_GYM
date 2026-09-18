@@ -117,6 +117,7 @@ import MdbNutritionScreen from '../screens/mdb/MdbNutritionScreen';
 import MdbWearableSettingsScreen from '../screens/mdb/MdbWearableSettingsScreen';
 import MdbHealthMetricsScreen from '../screens/mdb/MdbHealthMetricsScreen';
 import MdbShareCardScreen from '../screens/mdb/MdbShareCardScreen';
+import MdbTodaysWorkoutsScreen from '../screens/mdb/MdbTodaysWorkoutsScreen';
 
 // Gaming Zone (GZSM)
 import GamingScreen from '../screens/main/gaming/GamingScreen';
@@ -402,6 +403,7 @@ export default function AppNavigator() {
           options={{ gestureEnabled: false }}
         />
         <Stack.Screen name="MdbTemplateBrowser" component={MdbTemplateBrowserScreen} />
+        <Stack.Screen name="MdbTodaysWorkouts" component={MdbTodaysWorkoutsScreen} />
         <Stack.Screen name="MdbTemplateDetail" component={MdbTemplateDetailScreen} />
         <Stack.Screen name="MdbMuscleRecovery" component={MdbMuscleRecoveryScreen} />
         <Stack.Screen name="MdbExerciseDetail" component={MdbExerciseDetailScreen} />
