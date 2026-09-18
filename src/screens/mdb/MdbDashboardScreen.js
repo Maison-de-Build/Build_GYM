@@ -375,8 +375,10 @@ function aggregateDayDetail(details) {
     durationMinutes: details.reduce((n, d) => n + (Number(d.durationMinutes) || 0), 0),
     volumeKg: Math.round(details.reduce((n, d) => n + (Number(d.totalVolume) || 0), 0)),
     setsDone: allSets.length,
-    exerciseCount: new Set(allExercises.map((e) => e.exerciseId)).size
-      || new Set(allSets.map((x) => x.exerciseId)).size,
+    // Sets-derived, not the snapshot's full planned list — this should count
+    // the same exercises the bar graph below actually draws a bar for, not
+    // ones that were on the plan but never got a set logged.
+    exerciseCount: byExercise.size,
     calories: Math.round(details.reduce((n, d) => n + (Number(d.finalCalorieValue) || 0), 0)),
     exerciseBars,
     maxVolume,
