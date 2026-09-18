@@ -15,7 +15,7 @@
  * To make it real: replace DEMO_SERIES with the device series, key the HRV tab
  * off the connected device, and drop DEMO.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
 } from 'react-native';
@@ -26,10 +26,21 @@ import { MC, MG, MF, MR, MS } from '../../theme/mdbKit';
 import MdbIcon from '../../components/mdb/MdbIcon';
 import MdbLineChart from '../../components/mdb/MdbLineChart';
 import { LuxuryCard } from '../../components/mdb/MdbPrimitives';
+import { fetchDashboard } from '../../services/dashboardService';
 
 const DEMO = true;
 
+// Calories is real data (today's total + a period total from the dashboard
+// endpoint) — everything else on this screen is still Part-C demo readings.
+const RANGE_TO_PERIOD = { '1W': 'week', '1M': 'month', '3M': 'all', '6M': 'all' };
+
 const TABS = [
+  {
+    key: 'calories',
+    label: 'Calories',
+    title: 'Calories',
+    real: true,
+  },
   {
     key: 'hr',
     label: 'Heart Rate',
@@ -78,10 +89,28 @@ const RANGES = ['1W', '1M', '3M', '6M'];
 
 export default function MdbHealthMetricsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const [tabKey, setTabKey] = useState(route?.params?.metric || 'hr');
+  const [tabKey, setTabKey] = useState(route?.params?.metric || 'calories');
   const [range, setRange] = useState('1M');
+  const [calData, setCalData] = useState(null);
+  const [calLoading, setCalLoading] = useState(true);
 
   const tab = TABS.find((t) => t.key === tabKey) || TABS[0];
+
+  useEffect(() => {
+    if (tab.key !== 'calories') return;
+    setCalLoading(true);
+    fetchDashboard(RANGE_TO_PERIOD[range] || 'month')
+      .then((d) => setCalData(d))
+      .catch(() => setCalData(null))
+      .finally(() => setCalLoading(false));
+  }, [tab.key, range]);
+
+  const isCalories = tab.key === 'calories';
+  const calToday = calData?.combinedCaloriesToday?.total;
+  const calBreakdown = calData
+    ? `Workout ${calData.combinedCaloriesToday?.workout ?? 0} kcal · Activity ${calData.combinedCaloriesToday?.activity ?? 0} kcal`
+    : '';
+  const calPeriodTotal = calData?.kpis?.calories;
 
   return (
     <View style={s.screen}>
@@ -92,9 +121,11 @@ export default function MdbHealthMetricsScreen({ navigation, route }) {
           <MdbIcon name="chevron-left" size={20} color={MC.textSecondary} />
         </TouchableOpacity>
         <Text style={s.topTitle}>{tab.title}</Text>
-        <View style={s.deviceChip}>
-          <Text style={s.deviceText}>Apple Watch</Text>
-        </View>
+        {isCalories ? <View style={s.iconBtn} /> : (
+          <View style={s.deviceChip}>
+            <Text style={s.deviceText}>Apple Watch</Text>
+          </View>
+        )}
       </View>
 
       {/* ── 4 segment tabs ───────────────────────────────────────────────── */}
@@ -113,7 +144,7 @@ export default function MdbHealthMetricsScreen({ navigation, route }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-        {DEMO && (
+        {DEMO && !isCalories && (
           <View style={s.banner}>
             <MdbIcon name="info" size={14} color={MC.warm} />
             <Text style={s.bannerText}>
@@ -122,15 +153,50 @@ export default function MdbHealthMetricsScreen({ navigation, route }) {
           </View>
         )}
 
-        <LuxuryCard style={s.heroCard}>
-          <Text style={s.eyebrow}>{tab.heroLabel}</Text>
-          <View style={s.heroRow}>
-            <Text style={s.heroValue}>{tab.hero}</Text>
-            {!!tab.unit && <Text style={s.heroUnit}>{tab.unit}</Text>}
-          </View>
-          <Text style={s.heroCaption}>{tab.caption}</Text>
-        </LuxuryCard>
+        {isCalories ? (
+          <LuxuryCard style={s.heroCard}>
+            <Text style={s.eyebrow}>TODAY</Text>
+            <View style={s.heroRow}>
+              <Text style={s.heroValue}>{calLoading ? '—' : (calToday ?? 0).toLocaleString()}</Text>
+              <Text style={s.heroUnit}>kcal</Text>
+            </View>
+            <Text style={s.heroCaption}>{calLoading ? 'Loading…' : (calBreakdown || 'No sessions logged yet')}</Text>
+          </LuxuryCard>
+        ) : (
+          <LuxuryCard style={s.heroCard}>
+            <Text style={s.eyebrow}>{tab.heroLabel}</Text>
+            <View style={s.heroRow}>
+              <Text style={s.heroValue}>{tab.hero}</Text>
+              {!!tab.unit && <Text style={s.heroUnit}>{tab.unit}</Text>}
+            </View>
+            <Text style={s.heroCaption}>{tab.caption}</Text>
+          </LuxuryCard>
+        )}
 
+        {isCalories ? (
+          // No real per-day calorie series exists yet on the backend — showing
+          // a fabricated trend here would be exactly the "demo data as real"
+          // problem this split exists to fix, so this tab gets a period total
+          // instead of a chart.
+          <LuxuryCard style={s.chartCard}>
+            <View style={s.chartHead}>
+              <Text style={s.chartTitle}>This period</Text>
+              <View style={s.rangeRow}>
+                {RANGES.map((r, i) => (
+                  <React.Fragment key={r}>
+                    {i > 0 && <Text style={s.rangeSep}>·</Text>}
+                    <TouchableOpacity onPress={() => setRange(r)} activeOpacity={0.75} hitSlop={6}>
+                      <Text style={[s.rangeText, r === range && s.rangeTextOn]}>{r}</Text>
+                    </TouchableOpacity>
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+            <Text style={s.periodValue}>
+              {calLoading ? '—' : `${(calPeriodTotal ?? 0).toLocaleString()} kcal`}
+            </Text>
+          </LuxuryCard>
+        ) : (
         <LuxuryCard style={s.chartCard}>
           <View style={s.chartHead}>
             <Text style={s.chartTitle}>Trend</Text>
@@ -161,6 +227,7 @@ export default function MdbHealthMetricsScreen({ navigation, route }) {
             </Text>
           </View>
         </LuxuryCard>
+        )}
 
         <View style={{ height: MS.bottomRoom }} />
       </ScrollView>
@@ -221,6 +288,10 @@ const s = StyleSheet.create({
   chartCard: { padding: 16, gap: 12 },
   chartHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   chartTitle: { fontFamily: MF.semibold, fontSize: 13, color: MC.text },
+  periodValue: {
+    fontFamily: MF.monoSemi, fontSize: 22, color: MC.text,
+    fontVariant: ['tabular-nums'], paddingTop: 4,
+  },
   rangeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rangeSep: { color: MC.textTertiary, fontSize: 10 },
   rangeText: { fontFamily: MF.regular, fontSize: 10, color: MC.textTertiary },

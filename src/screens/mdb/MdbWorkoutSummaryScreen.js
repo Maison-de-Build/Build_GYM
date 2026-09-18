@@ -171,7 +171,7 @@ export default function MdbWorkoutSummaryScreen({ route, navigation }) {
         <TouchableOpacity
           style={s.shareBtn}
           activeOpacity={0.8}
-          onPress={() => navigation.navigate('MdbShareCard', { workoutLogId: detail?.id || workoutLogId, detail })}
+          onPress={() => navigation.navigate('MdbShareCard', { date: detail?.workoutDate, seedWorkoutLogId: detail?.id || workoutLogId })}
         >
           <Text style={s.shareText}>Share session card</Text>
           <Text style={s.shareArrow}>↗</Text>

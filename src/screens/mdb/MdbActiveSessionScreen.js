@@ -141,9 +141,17 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
     setWeight(String(last?.actualWeight ?? current.targetWeight ?? ''));
   }, [current?.id, currentSets.length]);
 
+  // A plate-calc sheet left open across an exercise switch would confirm its
+  // stale target weight onto whichever exercise is now current (the sheet's
+  // onConfirm writes to the screen's single shared `weight` state) — close it
+  // the instant the active exercise changes so that can't happen.
+  useEffect(() => { setPlateFor(null); }, [activeIndex]);
+
   /* ── Log one set ───────────────────────────────────────────────────────── */
   const logCurrentSet = async () => {
     if (!current || !log?.id) return;
+    // Fewer sets than planned is fine; more is not (Doc-N round-4 §4).
+    if (current.targetSets && currentSets.length >= current.targetSets) return;
     const setNumber = nextSetNumber;
     const values = valuesFor(current.measurementType, reps, weight);
     const idempotencyKey = `${log.id}:${current.id}:${setNumber}`;
@@ -411,6 +419,7 @@ function ActiveExerciseCard({
   setType, onCycleSetType, onLog, rest, onAdjustRest, onPlateCalc,
 }) {
   const isBarbell = exercise.equipmentType === 'barbell';
+  const capped = !!exercise.targetSets && sets.length >= exercise.targetSets;
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -508,8 +517,13 @@ function ActiveExerciseCard({
           </View>
 
           <View style={[s.colStatus, s.statusCell]}>
-            <TouchableOpacity onPress={onLog} activeOpacity={0.85}>
-              <LinearGradient colors={MG.primary} start={MG.start} end={MG.end} style={s.logBtn}>
+            <TouchableOpacity onPress={onLog} activeOpacity={0.85} disabled={capped}>
+              <LinearGradient
+                colors={MG.primary}
+                start={MG.start}
+                end={MG.end}
+                style={[s.logBtn, capped && s.logBtnDisabled]}
+              >
                 <MdbIcon name="check-bold" size={16} color={MC.white} />
               </LinearGradient>
             </TouchableOpacity>
@@ -521,7 +535,7 @@ function ActiveExerciseCard({
       <View style={s.chipRow}>
         <View style={s.addSet}>
           <Text style={s.addSetHint}>
-            Set {setNumber}{totalTarget ? ` of ${totalTarget}` : ''}
+            {capped ? `Target reached (${totalTarget} of ${totalTarget})` : `Set ${setNumber}${totalTarget ? ` of ${totalTarget}` : ''}`}
           </Text>
         </View>
         <TouchableOpacity style={s.typeChip} onPress={onCycleSetType} activeOpacity={0.8}>
@@ -752,6 +766,7 @@ const s = StyleSheet.create({
     paddingVertical: 0,
   },
   logBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  logBtnDisabled: { opacity: 0.35 },
 
   /* Chips */
   chipRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -4 },

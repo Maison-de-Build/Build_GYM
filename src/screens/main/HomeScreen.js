@@ -4,7 +4,6 @@ import {
   StatusBar, Image, RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { COLORS, FONTS } from '../../theme';
 import { useAnnouncementStore } from '../../store/announcementStore';
@@ -12,19 +11,23 @@ import { useAuthStore } from '../../store/authStore';
 import { useWalletStore } from '../../store/walletStore';
 import { useChatStore } from '../../store/chatStore';
 import { getSocket } from '../../services/socketService';
-import { fetchTodaysPlan, fetchStreak, fetchInstances } from '../../services/workoutService';
+import { fetchStreak, fetchInstances } from '../../services/workoutService';
+import { fetchDashboard } from '../../services/dashboardService';
 import { getMyLeaderboardStats } from '../../services/leaderboardService';
 import { fetchMyAttendance } from '../../services/gymService';
 import { fetchMyTrials } from '../../services/trialService';
 import ActiveOrderBar from '../../components/ActiveOrderBar';
 import NotificationPermissionBanner from '../../components/NotificationPermissionBanner';
+import WorkoutDayCard from '../../components/mdb/WorkoutDayCard';
+import WorkoutEmptyState from '../../components/mdb/WorkoutEmptyState';
+import MdbIcon from '../../components/mdb/MdbIcon';
+import useMemberMode from '../../hooks/useMemberMode';
 
 // Mockup accent palette (kept as literals — multi-colour KPI / quick-access tiles).
 const AMBER = '#F59E0B';
 const GOLD  = '#FFD700';
 const CYAN  = '#00CED1';
 const SILVER = '#C8C6C8';
-const GREEN = '#4ADE80';
 
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -69,13 +72,14 @@ export default function HomeScreen({ navigation }) {
   const user = useAuthStore((s) => s.user);
   const { balance, fetchBalance, setBalance } = useWalletStore();
 
-  const [todaysPlan, setTodaysPlan] = useState(null);
-  const [todayInstance, setTodayInstance] = useState(null);
+  const [todayInstances, setTodayInstances] = useState([]);
   const [streakData, setStreakData] = useState(null);
   const [leaderboardStats, setLeaderboardStats] = useState(null);
   const [attendance, setAttendance] = useState(null);
   const [upcomingTrial, setUpcomingTrial] = useState(null);
+  const [calToday, setCalToday] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const { isPt } = useMemberMode();
 
   // Live wallet balance (fetch + socket).
   useEffect(() => {
@@ -90,12 +94,12 @@ export default function HomeScreen({ navigation }) {
 
   const loadContent = useCallback(async () => {
     await Promise.all([
-      fetchTodaysPlan()
-        .then((data) => setTodaysPlan(data || null))
-        .catch(() => setTodaysPlan(null)),
       fetchInstances()
-        .then((data) => setTodayInstance((data?.today || [])[0] || null))
-        .catch(() => setTodayInstance(null)),
+        .then((data) => setTodayInstances(data?.today || []))
+        .catch(() => setTodayInstances([])),
+      fetchDashboard('week')
+        .then((data) => setCalToday(data?.combinedCaloriesToday?.total ?? null))
+        .catch(() => setCalToday(null)),
       fetchStreak()
         .then((data) => setStreakData(data || null))
         .catch(() => setStreakData(null)),
@@ -148,28 +152,6 @@ export default function HomeScreen({ navigation }) {
   const clubRank = leaderboardStats?.rank ? `#${leaderboardStats.rank}` : '—';
   const pointsValue = leaderboardStats?.points != null ? leaderboardStats.points.toLocaleString() : '—';
   const monthVisits = attendance?.monthCount != null ? `${attendance.monthCount} Visit${attendance.monthCount === 1 ? '' : 's'}` : '—';
-
-  // Today's workout — real dated instance first, else a weekly-plan match, else rest day.
-  const todayWorkout = todayInstance
-    ? {
-        name: todayInstance.snapshot?.name || 'Workout',
-        coach: todayInstance.trainerName || todayInstance.assignedByName || null,
-        status: todayInstance.status,
-        exCount: Array.isArray(todayInstance.snapshot?.exercises) ? todayInstance.snapshot.exercises.length : 0,
-        instanceId: todayInstance.id,
-        snapshot: todayInstance.snapshot,
-      }
-    : todaysPlan
-    ? {
-        name: todaysPlan.name,
-        coach: todaysPlan.trainerName || todaysPlan.assignedByName || null,
-        status: null,
-        exCount: todaysPlan.exercises?.length || 0,
-        planId: todaysPlan.id,
-        plan: todaysPlan,
-      }
-    : null;
-  const STATUS_LABEL = { assigned: 'Assigned', in_progress: 'In progress', completed: 'Completed', partial: 'Completed', missed: 'Missed', cancelled: 'Cancelled' };
 
   return (
     <View style={styles.container}>
@@ -266,58 +248,84 @@ export default function HomeScreen({ navigation }) {
           <KpiCard label="POINTS" value={pointsValue} icon="diamond" color={SILVER} />
         </View>
 
-        {/* ── CALORIES BURNED (dummy) ──────────────── */}
-        <View style={styles.calCard}>
+        {/* ── TODAY'S WORKOUT ───────────────────────── */}
+        {/* The one place workout logging starts from — Training's own screens
+            are browse/schedule only now. */}
+        <View style={styles.sectionBlock}>
+          <Text style={styles.eyebrow}>TODAY'S WORKOUT</Text>
+          {todayInstances.length > 0 ? (
+            <View style={{ gap: 12, marginTop: 8 }}>
+              {todayInstances.map((w) => (
+                <WorkoutDayCard
+                  key={w.id}
+                  workout={w}
+                  onBegin={() => navigation.navigate('MdbActiveSession', { instanceId: w.id, instance: w })}
+                  onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: w.id, live: true })}
+                />
+              ))}
+              {!isPt && (
+                <TouchableOpacity
+                  style={styles.addMoreRow}
+                  onPress={() => navigation.navigate('MdbTemplateBrowser', { date: isoDate(now) })}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
+                  <Text style={styles.addMoreText}>Add another workout</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <View style={{ marginTop: 8 }}>
+              <WorkoutEmptyState
+                variant={isPt ? 'pt' : 'freestyle'}
+                onAdd={() => navigation.navigate('MdbTemplateBrowser', { date: isoDate(now) })}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* ── CALORIES BURNED ────────────────────────── */}
+        <TouchableOpacity
+          style={styles.calCard}
+          activeOpacity={0.9}
+          onPress={() => navigation.navigate('MdbHealthMetrics', { metric: 'calories' })}
+        >
           <View style={styles.calHeader}>
             <View>
               <Text style={styles.eyebrow}>CALORIES BURNED</Text>
-              <Text style={styles.calValue}>2,840 <Text style={styles.calUnit}>kcal</Text></Text>
+              <Text style={styles.calValue}>
+                {calToday != null ? calToday.toLocaleString() : '—'} <Text style={styles.calUnit}>kcal</Text>
+              </Text>
             </View>
-            <Text style={styles.calDelta}>+12% vs last week</Text>
+            <MaterialIcons name="chevron-right" size={20} color={COLORS.textTertiary} />
           </View>
           <View style={styles.calGraphWrap}>
-          <View style={styles.calChart}>
-            {CAL_BARS.map((b, i) => {
-              const colors = b.c === 'purple'
-                ? ['rgba(167,139,250,0.4)', 'rgba(167,139,250,0.85)']
-                : b.c === 'mix'
-                  ? ['rgba(167,139,250,0.4)', CYAN]
-                  : ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.12)'];
-              return (
-                <View key={i} style={styles.calBarSlot}>
-                  <LinearGradient
-                    colors={colors}
-                    start={{ x: 0, y: 1 }}
-                    end={{ x: 0, y: 0 }}
-                    style={[styles.calBar, { height: `${b.h * 100}%` }]}
-                  />
-                </View>
-              );
-            })}
-          </View>
-          <View style={styles.calLabels}>
-            {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((d, i) => (
-              <Text key={d} style={[styles.calLabel, i === 3 && { color: COLORS.white }]}>{d}</Text>
-            ))}
-          </View>
-
-            {/* Feature not live yet — blur the graph and mark it Coming Soon.
-                Header text (CALORIES BURNED / kcal / +12%) stays sharp. */}
-            <BlurView
-              intensity={18}
-              tint="dark"
-              experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
-              pointerEvents="none"
-            />
-            <View style={styles.comingSoonWrap} pointerEvents="none">
-              <View style={styles.comingSoonBadge}>
-                <MaterialIcons name="schedule" size={13} color={COLORS.white} />
-                <Text style={styles.comingSoonText}>COMING SOON</Text>
-              </View>
+            <View style={styles.calChart}>
+              {CAL_BARS.map((b, i) => {
+                const colors = b.c === 'purple'
+                  ? ['rgba(167,139,250,0.4)', 'rgba(167,139,250,0.85)']
+                  : b.c === 'mix'
+                    ? ['rgba(167,139,250,0.4)', CYAN]
+                    : ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.12)'];
+                return (
+                  <View key={i} style={styles.calBarSlot}>
+                    <LinearGradient
+                      colors={colors}
+                      start={{ x: 0, y: 1 }}
+                      end={{ x: 0, y: 0 }}
+                      style={[styles.calBar, { height: `${b.h * 100}%` }]}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.calLabels}>
+              {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map((d, i) => (
+                <Text key={d} style={[styles.calLabel, i === 3 && { color: COLORS.white }]}>{d}</Text>
+              ))}
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* ── BUILD COINS CARD ─────────────────────── */}
         <TouchableOpacity
@@ -591,6 +599,15 @@ const styles = StyleSheet.create({
   kpiHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   kpiValue: { fontFamily: FONTS.headline, fontSize: 22 },
 
+  // Today's workout
+  sectionBlock: { marginBottom: 16 },
+  addMoreRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 44, borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)', borderStyle: 'dashed',
+  },
+  addMoreText: { fontFamily: FONTS.label, fontSize: 12, color: COLORS.primaryLight },
+
   // Calories
   calCard: {
     backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 18, borderWidth: 1, borderColor: COLORS.primaryBorder,
@@ -599,15 +616,7 @@ const styles = StyleSheet.create({
   calHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   calValue: { fontFamily: FONTS.headline, fontSize: 22, color: COLORS.white, marginTop: 2 },
   calUnit: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.textMuted },
-  calDelta: { fontFamily: FONTS.label, fontSize: 10, color: GREEN },
   calGraphWrap: { position: 'relative', borderRadius: 10, overflow: 'hidden' },
-  comingSoonWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  comingSoonBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
-    backgroundColor: 'rgba(20,18,26,0.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
-  },
-  comingSoonText: { fontFamily: FONTS.label, fontSize: 11, letterSpacing: 1.6, color: COLORS.white },
   calChart: { height: 120, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 },
   calBarSlot: { flex: 1, height: '100%', justifyContent: 'flex-end' },
   calBar: { width: '100%', borderTopLeftRadius: 4, borderTopRightRadius: 4 },

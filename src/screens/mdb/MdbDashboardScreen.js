@@ -7,15 +7,12 @@
  *
  * Stack order, per the pack:
  *   announcement bar · training week + streak · weekly recap (Sun/Mon) ·
- *   active-calories card · biometric telemetry · today's activity (collapsible) ·
- *   progress entry · today's workout
+ *   today's activity (collapsible) · progress entry · today's workout
  *
- * ⚠️ The biometric telemetry row is the wearable block. `/member/dashboard`
- * still reports wearableState: 'none' (Part C is unbuilt), so per the build
- * instruction it renders with the pack's placeholder readings behind a DEMO
- * marker rather than being deleted. PRD B.1's real rule is zero scaffolding —
- * when wearables ship, gate this on wearableState !== 'none' and it disappears
- * cleanly for members with no device. See WEARABLE_DEMO below.
+ * The active-calories card and biometric telemetry that used to live here
+ * moved to `MdbHealthMetricsScreen` (round 4) — Home's CALORIES BURNED card
+ * is now the entry point for that content, so it isn't duplicated on both
+ * screens.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -35,15 +32,6 @@ import { fetchInstances } from '../../services/workoutService';
 import { useAuthStore } from '../../store/authStore';
 import { useAnnouncementStore } from '../../store/announcementStore';
 import { sequenceOf, estimatedMinutes, isoDate } from '../../utils/mdbWorkout';
-
-// Flip to false the moment real telemetry exists; the row then reads from
-// dashboard.wearableState + dashboard.health and hides itself when absent.
-const WEARABLE_DEMO = true;
-const DEMO_METRICS = [
-  { value: '58 bpm', label: 'Resting HR' },
-  { value: '42 ms', label: 'HRV (SDNN)' },
-  { value: '7h 22m', label: 'Sleep' },
-];
 
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -83,7 +71,6 @@ export default function MdbDashboardScreen({ navigation }) {
 
   const firstName = user?.firstName || user?.fullName?.split(' ')[0] || 'Athlete';
   const initial = firstName.charAt(0).toUpperCase();
-  const cal = data?.combinedCaloriesToday || { total: 0, workout: 0, activity: 0 };
   const log = data?.activityLogToday || [];
   const streak = data?.streak || {};
   const recap = data?.weeklyRecap;
@@ -170,41 +157,6 @@ export default function MdbDashboardScreen({ navigation }) {
             wellness={data?.wellnessAvg}
             onDismiss={dismissRecap}
           />
-        )}
-
-        {/* ── Active calories today ──────────────────────────────────────── */}
-        <TouchableOpacity activeOpacity={0.85} onPress={() => navigation.navigate('MdbAnalytics')}>
-          <LuxuryCard style={s.calCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.eyebrow}>ACTIVE TODAY</Text>
-              <View style={s.calValueRow}>
-                <Text style={s.calValue}>{cal.total.toLocaleString()}</Text>
-                <Text style={s.calUnit}>kcal</Text>
-              </View>
-              <Text style={s.calSub}>{calorieBreakdown(data)}</Text>
-            </View>
-            <View style={s.calIcon}>
-              <MdbIcon name="flame" size={18} color={MC.warm} />
-            </View>
-          </LuxuryCard>
-        </TouchableOpacity>
-
-        {/* ── Biometric telemetry (demo until Part C) ────────────────────── */}
-        {WEARABLE_DEMO && (
-          <View style={s.telemetry}>
-            <View style={s.telemetryHead}>
-              <Text style={s.eyebrow}>BIOMETRIC TELEMETRY</Text>
-              <View style={s.demoBadge}><Text style={s.demoText}>DEMO DATA</Text></View>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.metricRail}>
-              {DEMO_METRICS.map((m) => (
-                <View key={m.label} style={s.metricCard}>
-                  <Text style={s.metricValue}>{m.value}</Text>
-                  <Text style={s.metricLabel}>{m.label}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
         )}
 
         {/* ── Today's activity (collapsible) ─────────────────────────────── */}
@@ -321,17 +273,6 @@ function buildWeek(heatmap) {
   });
 }
 
-function calorieBreakdown(data) {
-  const log = data?.activityLogToday || [];
-  const workouts = log.filter((r) => r.type === 'workout').length;
-  const activities = log.filter((r) => r.type === 'activity').length;
-  if (!workouts && !activities) return 'No sessions logged yet';
-  return [
-    workouts ? `${workouts} workout${workouts === 1 ? '' : 's'}` : null,
-    activities ? `${activities} activity${activities === 1 ? '' : 'ies'}` : null,
-  ].filter(Boolean).join(' · ');
-}
-
 function progressLabel(progress) {
   if (!progress) return 'Log your weight';
   const parts = [];
@@ -416,47 +357,6 @@ const s = StyleSheet.create({
   weekDowOn: { color: MC.cyan },
   weekDowToday: { color: MC.white, fontFamily: MF.monoSemi },
   weekMark: { fontFamily: MF.mono, fontSize: 10, color: MC.textTertiary },
-
-  /* Calories */
-  calCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-  calValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 2 },
-  calValue: {
-    fontFamily: MF.monoSemi, fontSize: 28, color: MC.text,
-    fontVariant: ['tabular-nums'],
-  },
-  calUnit: { fontFamily: MF.regular, fontSize: 14, color: MC.textSecondary },
-  calSub: { fontFamily: MF.regular, fontSize: 11, color: MC.textSecondary, marginTop: 2 },
-  calIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(245,166,35,0.10)',
-    borderWidth: 1, borderColor: 'rgba(245,166,35,0.30)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-
-  /* Telemetry */
-  telemetry: { gap: 6 },
-  telemetryHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 2,
-  },
-  demoBadge: {
-    paddingHorizontal: 6, paddingVertical: 1, borderRadius: MR.xs,
-    backgroundColor: 'rgba(245,166,35,0.12)',
-  },
-  demoText: { fontFamily: MF.semibold, fontSize: 8, letterSpacing: 0.8, color: MC.warm },
-  metricRail: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
-  metricCard: {
-    width: 100, padding: 10, alignItems: 'center',
-    backgroundColor: MC.card, borderWidth: 1, borderColor: MC.cardBorder, borderRadius: MR.card,
-  },
-  metricValue: {
-    fontFamily: MF.monoSemi, fontSize: 16, color: MC.text,
-    fontVariant: ['tabular-nums'],
-  },
-  metricLabel: {
-    fontFamily: MF.regular, fontSize: 9, letterSpacing: 0.8,
-    textTransform: 'uppercase', color: MC.textTertiary, marginTop: 2,
-  },
 
   /* Activity log */
   logCard: { padding: 12, gap: 8 },

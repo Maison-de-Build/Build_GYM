@@ -25,6 +25,7 @@ import {
   BackPill, LuxuryCard, ExerciseLetter, BrandFooter,
 } from '../../components/mdb/MdbPrimitives';
 import WorkoutDayCard from '../../components/mdb/WorkoutDayCard';
+import WorkoutEmptyState from '../../components/mdb/WorkoutEmptyState';
 import MdbSecondaryNav from '../../components/mdb/MdbSecondaryNav';
 import { fetchInstances, fetchInstancesRange, fetchMuscleRecovery } from '../../services/workoutService';
 import {
@@ -144,13 +145,6 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
   const targetLoad = targetLoadKg(sequence);
   const sets = totalSets(sequence);
 
-  const begin = () => {
-    // Belt and braces: the CTA is already replaced on a non-today day, but the
-    // guard stays so no future caller can start a session for another date.
-    if (!workout || !perms.canLog) return;
-    navigation.navigate('MdbActiveSession', { instanceId: workout.id, instance: workout });
-  };
-
   return (
     <View style={s.screen}>
       <StatusBar barStyle="light-content" backgroundColor={MC.bg} />
@@ -188,24 +182,21 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={MC.violetLight} />
           }
         >
-          {/* ── TODAY'S WORKOUT CARD ───────────────────────────────────── */}
+          {/* ── TODAY'S WORKOUT CARD (view/schedule only — logging lives on Home) */}
           {workout ? (
             <WorkoutDayCard
               workout={workout}
-              onBegin={begin}
+              readOnly
+              readOnlyReason={selectedDay?.isToday ? 'Open from Home to begin' : perms.reason}
               onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: workout.id })}
-              readOnly={!perms.canLog}
-              readOnlyReason={perms.reason}
             />
           ) : (
-            <LuxuryCard style={s.restCard}>
-              <Text style={s.restTitle}>Rest day</Text>
-              <Text style={s.restSub}>
-                {selectedDay?.isToday
-                  ? 'No workout assigned for today.'
-                  : `No workout on ${dayLabel(selectedDay)}.`}
-              </Text>
-            </LuxuryCard>
+            <WorkoutEmptyState
+              variant="pt"
+              pastLabel={selectedDay?.isToday
+                ? 'No workout assigned for today.'
+                : `No workout on ${dayLabel(selectedDay)}.`}
+            />
           )}
 
           {/* ── EXERCISE SEQUENCE ──────────────────────────────────────── */}
@@ -334,10 +325,6 @@ const s = StyleSheet.create({
   monthText: { fontFamily: MF.medium, fontSize: 13, letterSpacing: 0.3, color: MC.textSecondary },
 
   scroll: { paddingTop: 16, paddingHorizontal: MS.hMargin, gap: 20 },
-
-  restCard: { padding: 20, alignItems: 'center' },
-  restTitle: { fontFamily: MF.semibold, fontSize: 16, color: MC.text },
-  restSub: { fontFamily: MF.regular, fontSize: 12, color: MC.textTertiary, marginTop: 4 },
 
   /* Section headers */
   sectionHead: {

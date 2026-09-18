@@ -12,6 +12,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MC, MF, MR } from '../../theme/mdbKit';
 import MdbIcon from './MdbIcon';
@@ -32,6 +33,7 @@ const PLATE_STYLE = {
 };
 
 export default function MdbPlateCalcSheet({ exercise, targetWeight, onConfirm, onClose }) {
+  const insets = useSafeAreaInsets();
   const open = !!exercise;
   const [memberBar, setMemberBar] = useState(DEFAULT_BAR_KG);
   const [target, setTarget] = useState(Number(targetWeight) || 0);
@@ -56,14 +58,10 @@ export default function MdbPlateCalcSheet({ exercise, targetWeight, onConfirm, o
   const result = computePlates(target, bar);
   const grouped = summarizePlates(result.perSide);
 
-  const sideLabel = result.justBar
-    ? 'Bare bar'
-    : grouped.map((g) => `${g.count} × ${g.kg} kg`).join(' + ');
-
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={s.overlay} onPress={onClose}>
-        <Pressable style={s.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[s.sheet, { paddingBottom: 20 + insets.bottom }]} onPress={(e) => e.stopPropagation()}>
           <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.handleHit}>
             <View style={s.handle} />
           </TouchableOpacity>
@@ -136,9 +134,9 @@ export default function MdbPlateCalcSheet({ exercise, targetWeight, onConfirm, o
               </View>
 
               <View style={s.diagramLabels}>
-                <Text style={s.diagramSide} numberOfLines={1}>{sideLabel}</Text>
+                <View style={s.diagramSide}><PlateChips grouped={grouped} compact /></View>
                 <Text style={s.diagramShaft}>← SHAFT →</Text>
-                <Text style={s.diagramSide} numberOfLines={1}>{sideLabel}</Text>
+                <View style={s.diagramSide}><PlateChips grouped={grouped} compact /></View>
               </View>
             </View>
 
@@ -146,9 +144,14 @@ export default function MdbPlateCalcSheet({ exercise, targetWeight, onConfirm, o
             <View style={s.summaryCard}>
               <View style={{ flex: 1 }}>
                 <Text style={s.summaryLabel}>Configuration</Text>
-                <Text style={s.summaryValue} numberOfLines={2}>
-                  {result.justBar ? 'Bare bar — no plates needed' : `Each side: ${sideLabel}`}
-                </Text>
+                {result.justBar ? (
+                  <Text style={s.summaryValue}>Bare bar — no plates needed</Text>
+                ) : (
+                  <View style={s.summaryChipsRow}>
+                    <Text style={s.summaryValue}>Each side:</Text>
+                    <PlateChips grouped={grouped} />
+                  </View>
+                )}
               </View>
               <View style={[s.badge, !result.exact && s.badgeWarn]}>
                 <Text style={[s.badgeText, !result.exact && s.badgeTextWarn]}>
@@ -187,13 +190,37 @@ function Plate({ kg }) {
   );
 }
 
+/**
+ * Per-denomination chip row — replaces the old single concatenated string
+ * ("2 × 20 kg + 1 × 5 kg + 1 × 2.5 kg"), which read as one long run-on
+ * sentence once a load needed 3+ plate sizes per side. Each chip pairs a
+ * small swatch (same colour as its plate in the diagram above) with a
+ * compact "count×kg" label.
+ */
+function PlateChips({ grouped, compact = false }) {
+  if (!grouped.length) return <Text style={s.chipEmpty}>—</Text>;
+  return (
+    <View style={[s.chipsRow, compact && s.chipsRowCompact]}>
+      {grouped.map((g) => {
+        const st = PLATE_STYLE[g.kg] || PLATE_STYLE[1.25];
+        return (
+          <View key={g.kg} style={[s.chip, compact && s.chipCompact]}>
+            <View style={[s.chipSwatch, compact && s.chipSwatchCompact, { backgroundColor: st.bg }]} />
+            <Text style={[s.chipText, compact && s.chipTextCompact]}>{g.count}×{trimNum(g.kg)}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 const trimNum = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : String(round2(Number(n))));
 
 const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.60)', justifyContent: 'flex-end' },
   sheet: {
-    height: 464,
+    height: 620,
     backgroundColor: '#111114',
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
@@ -283,7 +310,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 8, paddingTop: 8, gap: 8,
   },
-  diagramSide: { flex: 1, fontFamily: MF.mono, fontSize: 10, color: MC.textTertiary },
+  diagramSide: { flex: 1 },
   diagramShaft: { fontFamily: MF.regular, fontSize: 9, color: 'rgba(185,178,186,0.5)' },
 
   summaryCard: {
@@ -296,6 +323,21 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', color: MC.textTertiary,
   },
   summaryValue: { fontFamily: MF.medium, fontSize: 13, color: MC.textSecondary, marginTop: 2 },
+  summaryChipsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  chipsRowCompact: { justifyContent: 'center', gap: 4 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 6, paddingVertical: 3, borderRadius: MR.xs,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: MC.cardBorder,
+  },
+  chipCompact: { paddingHorizontal: 4, paddingVertical: 2, gap: 3 },
+  chipSwatch: { width: 8, height: 8, borderRadius: 2 },
+  chipSwatchCompact: { width: 6, height: 6, borderRadius: 1.5 },
+  chipText: { fontFamily: MF.mono, fontSize: 11, color: MC.textSecondary, fontVariant: ['tabular-nums'] },
+  chipTextCompact: { fontSize: 9 },
+  chipEmpty: { fontFamily: MF.mono, fontSize: 10, color: MC.textTertiary },
   badge: {
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: MR.xs,
     backgroundColor: 'rgba(52,211,153,0.10)',

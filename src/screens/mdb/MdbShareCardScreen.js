@@ -9,7 +9,7 @@
  * ⚠️ react-native-view-shot and expo-sharing are native modules: this screen
  * needs a fresh dev-client / EAS build, it will not work over OTA.
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, ActivityIndicator, Alert, useWindowDimensions,
@@ -21,7 +21,10 @@ import * as Sharing from 'expo-sharing';
 
 import { MC, MG, MF, MR, MS } from '../../theme/mdbKit';
 import MdbIcon from '../../components/mdb/MdbIcon';
+import { EmptyState } from '../../components/mdb/MdbPrimitives';
 import MdbShareCard, { FEED_RATIO, STORY_RATIO, OUTPUT_WIDTH } from '../../components/mdb/MdbShareCard';
+import { fetchInstances, fetchWorkoutDetail } from '../../services/workoutService';
+import { isoDate } from '../../utils/mdbWorkout';
 import { useAuthStore } from '../../store/authStore';
 
 const FORMATS = [
@@ -33,13 +36,38 @@ export default function MdbShareCardScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
   const user = useAuthStore((s) => s.user);
-  const { detail } = route.params || {};
+  const { date } = route.params || {};
 
   const cardRef = useRef(null);
   const [format, setFormat] = useState('feed');
   const [busy, setBusy] = useState(false);
+  const [details, setDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const data = useMemo(() => buildCardData(detail, user), [detail, user]);
+  // A "session" is every workout completed that day, not just the one just
+  // finished — a freestyle member can now schedule several for one day.
+  useEffect(() => {
+    (async () => {
+      try {
+        const targetDate = date || isoDate(new Date());
+        const inst = await fetchInstances();
+        const seen = new Set();
+        const rows = [...(inst?.today || []), ...(inst?.history || [])].filter((r) => {
+          if (seen.has(r.id)) return false;
+          seen.add(r.id);
+          return String(r.workoutDate).slice(0, 10) === targetDate
+            && (r.status === 'completed' || r.status === 'partial');
+        });
+        setDetails(await Promise.all(rows.map((r) => fetchWorkoutDetail(r.id))));
+      } catch {
+        setDetails([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [date]);
+
+  const data = useMemo(() => buildCardData(details || [], user), [details, user]);
 
   // Story is much taller, so it previews narrower to stay on one screen.
   const cardWidth = Math.min(screenW - 32, format === 'story' ? 260 : 340);
@@ -73,6 +101,14 @@ export default function MdbShareCardScreen({ route, navigation }) {
     }
   };
 
+  if (loading) {
+    return (
+      <View style={[s.screen, s.center]}>
+        <ActivityIndicator color={MC.violetLight} />
+      </View>
+    );
+  }
+
   return (
     <View style={s.screen}>
       <StatusBar barStyle="light-content" backgroundColor={MC.bg} />
@@ -85,6 +121,9 @@ export default function MdbShareCardScreen({ route, navigation }) {
         <View style={s.iconBtn} />
       </View>
 
+      {!details?.length ? (
+        <EmptyState title="Nothing completed that day yet" subtitle="Finish a workout to share a session card." style={s.emptyState} />
+      ) : (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
         {/* ── Format switch ────────────────────────────────────────────────── */}
         <View style={s.formatRow}>
@@ -123,20 +162,26 @@ export default function MdbShareCardScreen({ route, navigation }) {
 
         <View style={{ height: MS.bottomRoom }} />
       </ScrollView>
+      )}
     </View>
   );
 }
 
-/* ── Map a workout detail row onto the card's fields ─────────────────────── */
-function buildCardData(detail, user) {
-  const sets = detail?.sets || [];
-  const exercises = detail?.snapshot?.exercises || [];
-  const nameOf = (id) => exercises.find((e) => e.exerciseId === id)?.name || 'Exercise';
+/**
+ * Map the day's completed workout(s) onto the card's fields. `details` is
+ * every workout_logs row completed that day — usually one, but a freestyle
+ * member can now schedule several, and the card is meant to represent the
+ * whole session, not just whichever one happened to be opened last.
+ */
+function buildCardData(details, user) {
+  const allSets = details.flatMap((d) => d.sets || []);
+  const allExercises = details.flatMap((d) => d.snapshot?.exercises || []);
+  const nameOf = (id) => allExercises.find((e) => e.exerciseId === id)?.name || 'Exercise';
 
   // One line per exercise that set a record, heaviest first, capped at two —
   // the card has room for two and the pack shows no more.
   const byExercise = new Map();
-  for (const st of sets.filter((x) => x.isPr)) {
+  for (const st of allSets.filter((x) => x.isPr)) {
     const w = Number(st.actualWeight) || 0;
     if (!byExercise.has(st.exerciseId) || w > byExercise.get(st.exerciseId).w) {
       byExercise.set(st.exerciseId, { w, label: `${nameOf(st.exerciseId)}, ${trim(st.actualWeight)} kg` });
@@ -148,14 +193,18 @@ function buildCardData(detail, user) {
     ? `${user.fullName.split(' ')[0]} ${(user.fullName.split(' ').slice(-1)[0] || '').charAt(0)}.`.trim()
     : (user?.firstName || 'Member');
 
+  const names = details.map((d) => d.snapshot?.name || d.sourceTemplateName).filter(Boolean);
+  const title = details.length === 0 ? 'Workout' : names.length <= 2 ? names.join(' + ') : `${details.length} Workouts`;
+
   return {
-    title: detail?.snapshot?.name || 'Workout',
-    date: detail?.workoutDate,
-    durationMinutes: detail?.durationMinutes ?? 0,
-    volumeKg: Math.round(Number(detail?.totalVolume) || 0),
-    setsDone: sets.length,
-    setsTotal: exercises.reduce((n, e) => n + (Number(e.sets) || 0), 0),
-    exerciseCount: exercises.length || new Set(sets.map((x) => x.exerciseId)).size,
+    title,
+    date: details[0]?.workoutDate,
+    durationMinutes: details.reduce((n, d) => n + (Number(d.durationMinutes) || 0), 0),
+    volumeKg: Math.round(details.reduce((n, d) => n + (Number(d.totalVolume) || 0), 0)),
+    setsDone: allSets.length,
+    setsTotal: allExercises.reduce((n, e) => n + (Number(e.sets) || 0), 0),
+    exerciseCount: new Set(allExercises.map((e) => e.exerciseId)).size
+      || new Set(allSets.map((x) => x.exerciseId)).size,
     prs,
     memberName,
   };
@@ -165,6 +214,8 @@ const trim = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : String(n)
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: MC.bg },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  emptyState: { flex: 1, justifyContent: 'center' },
   topBar: {
     height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: MS.hMargin,

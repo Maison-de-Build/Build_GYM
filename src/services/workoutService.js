@@ -209,6 +209,13 @@ export const selfAssignTemplate = async (templateId, date, replace = false) => {
   return data;
 };
 
+// One or more gym templates and/or a bundle of standalone exercises, all for
+// one day, in one call — see docs/MDB_BUILD_STATUS.md round 4.
+export const selfAssignBundle = async ({ date, templateIds = [], exercises = [], collisionStrategy = 'add' }) => {
+  const { data } = await api.post('/workout/self-assign/bundle', { date, templateIds, exercises, collisionStrategy });
+  return data;
+};
+
 export const deleteSelfAssigned = async (workoutLogId) => {
   const { data } = await api.delete(`/workout/self-assigned/${workoutLogId}`);
   return data;

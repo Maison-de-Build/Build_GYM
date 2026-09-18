@@ -17,20 +17,19 @@ import {
   StatusBar, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 
-import { MC, MG, MF, MR, MS } from '../../theme/mdbKit';
+import { MC, MF, MR, MS } from '../../theme/mdbKit';
 import MdbIcon from '../../components/mdb/MdbIcon';
-import GlowBlob from '../../components/mdb/GlowBlob';
 import DateNavigator from '../../components/mdb/DateNavigator';
 import MdbMonthPicker from '../../components/mdb/MdbMonthPicker';
 import { MuscleRecoveryStrip, MuscleDetailSheet } from '../../components/mdb/MuscleRecovery';
-import { BackPill, LuxuryCard, ExerciseLetter, BrandFooter } from '../../components/mdb/MdbPrimitives';
+import { BackPill, BrandFooter } from '../../components/mdb/MdbPrimitives';
 import WorkoutDayCard from '../../components/mdb/WorkoutDayCard';
+import WorkoutEmptyState from '../../components/mdb/WorkoutEmptyState';
 import MdbSecondaryNav from '../../components/mdb/MdbSecondaryNav';
 import { fetchInstances, fetchInstancesRange, fetchMuscleRecovery, browseTemplates } from '../../services/workoutService';
 import {
-  buildDayStrip, sequenceOf, targetLoadKg, totalSets, estimatedMinutes,
+  buildDayStrip, estimatedMinutes,
   groupInstancesByDate, flattenInstances, parseIsoLocal, dayPermissions, monthBounds, monthTitle,
   isoDate, relativeDateTime, titleCase,
 } from '../../utils/mdbWorkout';
@@ -131,12 +130,7 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
     || days.find((d) => d.iso === anchorIso)
     || days.find((d) => d.isToday);
   const perms = dayPermissions(selectedDay);
-  const workout = selectedDay?.instances?.[0] || null;
-  const sequence = useMemo(() => (workout ? sequenceOf(workout) : []), [workout]);
-  const isCompleted = workout?.status === 'completed' || workout?.status === 'partial';
-
-  const targetLoad = targetLoadKg(sequence);
-  const sets = totalSets(sequence);
+  const workouts = selectedDay?.instances || [];
 
   const openBrowser = () => {
     if (!perms.canSchedule) return;
@@ -178,74 +172,28 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={MC.violetLight} />
           }
         >
-          {/* ── Scheduled workout, or the inviting empty state ──────────── */}
-          {workout ? (
-            <WorkoutDayCard
-              workout={workout}
-              readOnly={!perms.canLog}
-              readOnlyReason={perms.reason}
-              onBegin={() => {
-                if (!perms.canLog) return;
-                navigation.navigate('MdbActiveSession', { instanceId: workout.id, instance: workout });
-              }}
-              onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: workout.id })}
-            />
-          ) : (
-            <LuxuryCard style={s.emptyCard}>
-              <GlowBlob size={144} color={MC.violet} opacity={0.08} style={s.emptyGlow} />
-              <Text style={s.emptyText}>No workout scheduled</Text>
-              {perms.canSchedule ? (
-                <>
-                  <TouchableOpacity onPress={openBrowser} activeOpacity={0.85} style={s.plusShadow}>
-                    <LinearGradient colors={MG.primary} start={MG.start} end={MG.end} style={s.plusBtn}>
-                      <MdbIcon name="plus" size={20} color={MC.white} />
-                    </LinearGradient>
-                  </TouchableOpacity>
-                  <Text style={s.emptyHint}>Browse templates</Text>
-                </>
-              ) : (
-                // A past day cannot be scheduled — self-assign only accepts
-                // today..+14 — so the "+" is absent rather than dead.
-                <Text style={s.emptyHint}>Past day — nothing was logged</Text>
+          {/* ── Scheduled workout(s), or the inviting empty state ────────── */}
+          {/* View/schedule only — logging itself lives on Home now. */}
+          {workouts.length > 0 ? (
+            <View style={{ gap: 12 }}>
+              {workouts.map((w) => (
+                <WorkoutDayCard
+                  key={w.id}
+                  workout={w}
+                  readOnly
+                  readOnlyReason={selectedDay?.isToday ? 'Open from Home to begin' : perms.reason}
+                  onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: w.id })}
+                />
+              ))}
+              {perms.canSchedule && (
+                <TouchableOpacity style={s.addMoreRow} onPress={openBrowser} activeOpacity={0.7}>
+                  <MdbIcon name="plus" size={14} color={MC.violetLight} />
+                  <Text style={s.addMoreText}>Add another workout</Text>
+                </TouchableOpacity>
               )}
-            </LuxuryCard>
-          )}
-
-          {/* ── Exercise sequence (only once a workout is scheduled) ────── */}
-          {sequence.length > 0 && (
-            <View>
-              <View style={s.sectionHead}>
-                <View style={s.sectionHeadLeft}>
-                  <Text style={s.sectionLabel}>EXERCISE SEQUENCE</Text>
-                  <Text style={s.sectionMeta}>{String(sets).padStart(2, '0')} Sets Plan</Text>
-                </View>
-                {targetLoad != null && (
-                  <Text style={s.sectionRight}>Target Load: {targetLoad.toLocaleString()} kg</Text>
-                )}
-              </View>
-              <LuxuryCard style={{ overflow: 'hidden' }}>
-                {sequence.map((ex, i) => {
-                  const done = isCompleted || ex.completed;
-                  return (
-                    <TouchableOpacity
-                      key={`${ex.exerciseId}-${i}`}
-                      style={[s.exRow, i > 0 && s.exRowDivider]}
-                      activeOpacity={0.75}
-                      onPress={() => navigation.navigate('MdbExerciseDetail', { exerciseId: ex.exerciseId, name: ex.name })}
-                    >
-                      <ExerciseLetter letter={ex.letter} />
-                      <View style={s.exBody}>
-                        <Text style={s.exName} numberOfLines={1}>{ex.name}</Text>
-                        <Text style={s.exTarget}>{ex.target}</Text>
-                      </View>
-                      <View style={done ? s.exDone : s.exPending}>
-                        {done && <MdbIcon name="check" size={12} color={MC.warm} />}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </LuxuryCard>
             </View>
+          ) : (
+            <WorkoutEmptyState variant="freestyle" canAdd={perms.canSchedule} onAdd={openBrowser} />
           )}
 
           {/* ── SUGGESTED FOR YOU ──────────────────────────────────────── */}
@@ -271,8 +219,8 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
                     key={t.id}
                     template={t}
                     topPick={i === 0}
-                    onPress={() => navigation.navigate('MdbTemplateDetail', {
-                      templateId: t.id, template: t, date: selectedDay?.iso,
+                    onPress={() => navigation.navigate('MdbTemplateBrowser', {
+                      date: selectedDay?.iso, preselectTemplateId: t.id,
                     })}
                   />
                 ))}
@@ -394,19 +342,12 @@ const s = StyleSheet.create({
   // space-y-6 on this screen (24px), vs space-y-5 on screen 01.
   scroll: { paddingTop: 16, paddingHorizontal: MS.hMargin, gap: 24 },
 
-  /* Empty state */
-  emptyCard: { height: 190, padding: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  emptyGlow: { position: 'absolute' },
-  emptyText: {
-    fontFamily: MF.medium, fontSize: 14, color: MC.textSecondary,
-    marginBottom: 16, letterSpacing: -0.2,
+  addMoreRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 44, borderRadius: MR.button,
+    borderWidth: 1, borderColor: 'rgba(120,61,236,0.35)', borderStyle: 'dashed',
   },
-  plusShadow: {
-    shadowColor: MC.violet, shadowOpacity: 0.5,
-    shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8,
-  },
-  plusBtn: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  emptyHint: { fontFamily: MF.medium, fontSize: 11, color: MC.textTertiary, letterSpacing: 0.4, marginTop: 12 },
+  addMoreText: { fontFamily: MF.medium, fontSize: 12, color: MC.violetLight },
 
   /* Sections */
   sectionHead: {
@@ -422,7 +363,6 @@ const s = StyleSheet.create({
     fontFamily: MF.semibold, fontSize: 10, letterSpacing: 1.2,
     textTransform: 'uppercase', color: MC.textTertiary,
   },
-  sectionMeta: { fontFamily: MF.medium, fontSize: 11, color: MC.textSecondary, fontVariant: ['tabular-nums'] },
   sectionRight: { fontFamily: MF.medium, fontSize: 10, color: MC.textTertiary },
   seeAll: { fontFamily: MF.medium, fontSize: 11, color: MC.textSecondary },
   countBadge: {
@@ -459,18 +399,4 @@ const s = StyleSheet.create({
     fontFamily: MF.medium, fontSize: 10, color: MC.textTertiary,
     fontVariant: ['tabular-nums'],
   },
-
-  /* Exercise rows */
-  exRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  exRowDivider: { borderTopWidth: 1, borderTopColor: MC.cardBorder },
-  exBody: { flex: 1, minWidth: 0 },
-  exName: { fontFamily: MF.medium, fontSize: 14, color: MC.text },
-  exTarget: { fontFamily: MF.mono, fontSize: 12, color: MC.textSecondary, fontVariant: ['tabular-nums'], marginTop: 2 },
-  exDone: {
-    width: 20, height: 20, borderRadius: 10,
-    backgroundColor: 'rgba(245,166,35,0.15)',
-    borderWidth: 1, borderColor: 'rgba(245,166,35,0.40)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  exPending: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(142,130,141,0.5)' },
 });
