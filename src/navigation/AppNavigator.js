@@ -106,6 +106,7 @@ import MdbTrainingHubScreen from '../screens/mdb/MdbTrainingHubScreen';
 import MdbActiveSessionScreen from '../screens/mdb/MdbActiveSessionScreen';
 import MdbWorkoutSummaryScreen from '../screens/mdb/MdbWorkoutSummaryScreen';
 import MdbTemplateBrowserScreen from '../screens/mdb/MdbTemplateBrowserScreen';
+import MdbEditWorkoutScreen from '../screens/mdb/MdbEditWorkoutScreen';
 import MdbTemplateDetailScreen from '../screens/mdb/MdbTemplateDetailScreen';
 import MdbMuscleRecoveryScreen from '../screens/mdb/MdbMuscleRecoveryScreen';
 import MdbExerciseDetailScreen from '../screens/mdb/MdbExerciseDetailScreen';
@@ -404,6 +405,7 @@ export default function AppNavigator() {
         />
         <Stack.Screen name="MdbTemplateBrowser" component={MdbTemplateBrowserScreen} />
         <Stack.Screen name="MdbTodaysWorkouts" component={MdbTodaysWorkoutsScreen} />
+        <Stack.Screen name="MdbEditWorkout" component={MdbEditWorkoutScreen} />
         <Stack.Screen name="MdbTemplateDetail" component={MdbTemplateDetailScreen} />
         <Stack.Screen name="MdbMuscleRecovery" component={MdbMuscleRecoveryScreen} />
         <Stack.Screen name="MdbExerciseDetail" component={MdbExerciseDetailScreen} />

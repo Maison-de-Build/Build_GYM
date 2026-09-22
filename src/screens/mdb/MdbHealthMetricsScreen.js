@@ -1,28 +1,32 @@
 /**
- * Screen 21 — Health Metrics Detail (wearable deep-dive).
- * Port of `screen_21_health_metrics_detail.html`.
+ * Screen 21 — Health Metrics Detail.
+ *
+ * One page, top to bottom: today's real calories first (this is where Home's
+ * CALORIES BURNED card lands), then the wearable block behind a single DEMO
+ * banner. It used to be five tabs in a 38pt row showing one metric at a
+ * time, which buried four of the five and made the page feel like five
+ * separate screens wearing one hat.
  *
  * ⚠️ DEMO DATA — PRD Part C is unbuilt, so there is no HR / HRV / sleep /
- * recovery source. Per the build instruction the screen ships laid out exactly
- * as designed with the pack's own sample readings and a persistent DEMO banner,
- * rather than being omitted.
+ * recovery source. Per the build instruction those ship laid out exactly as
+ * designed with the pack's own sample readings and a persistent DEMO banner,
+ * rather than being omitted. Calories is real.
  *
- * The four tabs and the SDNN-vs-RMSSD split are the substance here: the pack is
- * firm that Apple Watch reports SDNN and Whoop reports RMSSD, and that the two
- * must never be averaged into one "HRV" number. That rule is encoded in TABS
- * below so it survives into the real implementation.
+ * The SDNN-vs-RMSSD split is substance, not decoration: the pack is firm that
+ * Apple Watch reports SDNN and Whoop reports RMSSD, and that the two must
+ * never be averaged into one "HRV" number. That rule is encoded in
+ * WEARABLE_SECTIONS below so it survives into the real implementation.
  *
- * To make it real: replace DEMO_SERIES with the device series, key the HRV tab
- * off the connected device, and drop DEMO.
+ * To make it real: replace each section's `series` with the device series,
+ * key the HRV section off the connected device, and drop DEMO.
  */
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 
-import { MC, MG, MF, MR, MS } from '../../theme/mdbKit';
+import { MC, MF, MR, MS } from '../../theme/mdbKit';
 import MdbIcon from '../../components/mdb/MdbIcon';
 import MdbLineChart from '../../components/mdb/MdbLineChart';
 import { LuxuryCard } from '../../components/mdb/MdbPrimitives';
@@ -34,16 +38,9 @@ const DEMO = true;
 // endpoint) — everything else on this screen is still Part-C demo readings.
 const RANGE_TO_PERIOD = { '1W': 'week', '1M': 'month', '3M': 'all', '6M': 'all' };
 
-const TABS = [
-  {
-    key: 'calories',
-    label: 'Calories',
-    title: 'Calories',
-    real: true,
-  },
+const WEARABLE_SECTIONS = [
   {
     key: 'hr',
-    label: 'Heart Rate',
     title: 'Heart Rate',
     heroLabel: 'RESTING HEART RATE',
     hero: '58',
@@ -53,19 +50,17 @@ const TABS = [
   },
   {
     key: 'hrv',
-    label: 'HRV',
     title: 'HRV (SDNN)',
     heroLabel: 'HEART RATE VARIABILITY',
     hero: '42',
     unit: 'ms',
-    // Apple reports SDNN, Whoop reports RMSSD. They are different statistics and
-    // are never mixed — the label always names which one is on screen.
+    // Apple reports SDNN, Whoop reports RMSSD. They are different statistics
+    // and are never mixed — the label always names which one is on screen.
     caption: 'SDNN · Apple Watch. Whoop reports RMSSD separately.',
     series: [38, 40, 37, 41, 43, 39, 42, 44, 41, 42],
   },
   {
     key: 'sleep',
-    label: 'Sleep',
     title: 'Sleep',
     heroLabel: 'LAST NIGHT',
     hero: '7h 22m',
@@ -75,7 +70,6 @@ const TABS = [
   },
   {
     key: 'recovery',
-    label: 'Recovery',
     title: 'Recovery',
     heroLabel: 'RECOVERY SCORE',
     hero: '68',
@@ -89,23 +83,18 @@ const RANGES = ['1W', '1M', '3M', '6M'];
 
 export default function MdbHealthMetricsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const [tabKey, setTabKey] = useState(route?.params?.metric || 'calories');
   const [range, setRange] = useState('1M');
   const [calData, setCalData] = useState(null);
   const [calLoading, setCalLoading] = useState(true);
 
-  const tab = TABS.find((t) => t.key === tabKey) || TABS[0];
-
   useEffect(() => {
-    if (tab.key !== 'calories') return;
     setCalLoading(true);
     fetchDashboard(RANGE_TO_PERIOD[range] || 'month')
       .then((d) => setCalData(d))
       .catch(() => setCalData(null))
       .finally(() => setCalLoading(false));
-  }, [tab.key, range]);
+  }, [range]);
 
-  const isCalories = tab.key === 'calories';
   const calToday = calData?.combinedCaloriesToday?.total;
   const calBreakdown = calData
     ? `Workout ${calData.combinedCaloriesToday?.workout ?? 0} kcal · Activity ${calData.combinedCaloriesToday?.activity ?? 0} kcal`
@@ -120,31 +109,46 @@ export default function MdbHealthMetricsScreen({ navigation, route }) {
         <TouchableOpacity style={s.iconBtn} onPress={() => navigation.goBack()} activeOpacity={0.7} hitSlop={8}>
           <MdbIcon name="chevron-left" size={20} color={MC.textSecondary} />
         </TouchableOpacity>
-        <Text style={s.topTitle}>{tab.title}</Text>
-        {isCalories ? <View style={s.iconBtn} /> : (
-          <View style={s.deviceChip}>
-            <Text style={s.deviceText}>Apple Watch</Text>
-          </View>
-        )}
-      </View>
-
-      {/* ── 4 segment tabs ───────────────────────────────────────────────── */}
-      <View style={s.segment}>
-        {TABS.map((t) => {
-          const on = t.key === tabKey;
-          return (
-            <TouchableOpacity key={t.key} style={s.segmentBtn} onPress={() => setTabKey(t.key)} activeOpacity={0.8}>
-              <Text style={[s.segmentText, on && s.segmentTextOn]}>{t.label}</Text>
-              {on && (
-                <LinearGradient colors={MG.primary} start={MG.startX} end={MG.endX} style={s.segmentUnderline} />
-              )}
-            </TouchableOpacity>
-          );
-        })}
+        <Text style={s.topTitle}>Health Metrics</Text>
+        <View style={s.iconBtn} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-        {DEMO && !isCalories && (
+        {/* ── Calories — the only real data on this page ─────────────────── */}
+        <Text style={s.sectionLabel}>CALORIES</Text>
+
+        <LuxuryCard style={s.heroCard}>
+          <Text style={s.eyebrow}>TODAY</Text>
+          <View style={s.heroRow}>
+            <Text style={s.heroValue}>{calLoading ? '—' : (calToday ?? 0).toLocaleString()}</Text>
+            <Text style={s.heroUnit}>kcal</Text>
+          </View>
+          <Text style={s.heroCaption}>{calLoading ? 'Loading…' : (calBreakdown || 'No sessions logged yet')}</Text>
+        </LuxuryCard>
+
+        {/* No real per-day calorie series exists on the backend — only today's
+            total and a period total. A fabricated trend line here would be
+            exactly the "demo data passed off as real" problem this page is
+            meant to avoid, so this gets a period total instead of a chart. */}
+        <LuxuryCard style={s.chartCard}>
+          <View style={s.chartHead}>
+            <Text style={s.chartTitle}>This period</Text>
+            <RangePicker range={range} onChange={setRange} />
+          </View>
+          <Text style={s.periodValue}>
+            {calLoading ? '—' : `${(calPeriodTotal ?? 0).toLocaleString()} kcal`}
+          </Text>
+        </LuxuryCard>
+
+        {/* ── Wearable metrics — one banner for the whole block ──────────── */}
+        <View style={s.wearableHead}>
+          <Text style={s.sectionLabel}>WEARABLE</Text>
+          <View style={s.deviceChip}>
+            <Text style={s.deviceText}>Apple Watch</Text>
+          </View>
+        </View>
+
+        {DEMO && (
           <View style={s.banner}>
             <MdbIcon name="info" size={14} color={MC.warm} />
             <Text style={s.bannerText}>
@@ -153,84 +157,50 @@ export default function MdbHealthMetricsScreen({ navigation, route }) {
           </View>
         )}
 
-        {isCalories ? (
-          <LuxuryCard style={s.heroCard}>
-            <Text style={s.eyebrow}>TODAY</Text>
-            <View style={s.heroRow}>
-              <Text style={s.heroValue}>{calLoading ? '—' : (calToday ?? 0).toLocaleString()}</Text>
-              <Text style={s.heroUnit}>kcal</Text>
-            </View>
-            <Text style={s.heroCaption}>{calLoading ? 'Loading…' : (calBreakdown || 'No sessions logged yet')}</Text>
-          </LuxuryCard>
-        ) : (
-          <LuxuryCard style={s.heroCard}>
-            <Text style={s.eyebrow}>{tab.heroLabel}</Text>
-            <View style={s.heroRow}>
-              <Text style={s.heroValue}>{tab.hero}</Text>
-              {!!tab.unit && <Text style={s.heroUnit}>{tab.unit}</Text>}
-            </View>
-            <Text style={s.heroCaption}>{tab.caption}</Text>
-          </LuxuryCard>
-        )}
-
-        {isCalories ? (
-          // No real per-day calorie series exists yet on the backend — showing
-          // a fabricated trend here would be exactly the "demo data as real"
-          // problem this split exists to fix, so this tab gets a period total
-          // instead of a chart.
-          <LuxuryCard style={s.chartCard}>
+        {WEARABLE_SECTIONS.map((sec) => (
+          <LuxuryCard key={sec.key} style={s.chartCard}>
             <View style={s.chartHead}>
-              <Text style={s.chartTitle}>This period</Text>
-              <View style={s.rangeRow}>
-                {RANGES.map((r, i) => (
-                  <React.Fragment key={r}>
-                    {i > 0 && <Text style={s.rangeSep}>·</Text>}
-                    <TouchableOpacity onPress={() => setRange(r)} activeOpacity={0.75} hitSlop={6}>
-                      <Text style={[s.rangeText, r === range && s.rangeTextOn]}>{r}</Text>
-                    </TouchableOpacity>
-                  </React.Fragment>
-                ))}
-              </View>
+              <Text style={s.chartTitle}>{sec.title}</Text>
+              <Text style={s.heroInline}>
+                {sec.hero}{sec.unit ? ` ${sec.unit}` : ''}
+              </Text>
             </View>
-            <Text style={s.periodValue}>
-              {calLoading ? '—' : `${(calPeriodTotal ?? 0).toLocaleString()} kcal`}
-            </Text>
+            <Text style={s.heroCaption}>{sec.caption}</Text>
+
+            <MdbLineChart
+              points={sec.series.map((y) => ({ y }))}
+              height={150}
+              gradientId={`health-${sec.key}`}
+            />
+
+            <View style={s.chartFoot}>
+              <Text style={s.chartFootText}>
+                Start ({sec.series[0]}{sec.unit ? ` ${sec.unit}` : ''})
+              </Text>
+              <Text style={s.chartFootText}>
+                Current ({sec.series[sec.series.length - 1]}{sec.unit ? ` ${sec.unit}` : ''})
+              </Text>
+            </View>
           </LuxuryCard>
-        ) : (
-        <LuxuryCard style={s.chartCard}>
-          <View style={s.chartHead}>
-            <Text style={s.chartTitle}>Trend</Text>
-            <View style={s.rangeRow}>
-              {RANGES.map((r, i) => (
-                <React.Fragment key={r}>
-                  {i > 0 && <Text style={s.rangeSep}>·</Text>}
-                  <TouchableOpacity onPress={() => setRange(r)} activeOpacity={0.75} hitSlop={6}>
-                    <Text style={[s.rangeText, r === range && s.rangeTextOn]}>{r}</Text>
-                  </TouchableOpacity>
-                </React.Fragment>
-              ))}
-            </View>
-          </View>
-
-          <MdbLineChart
-            points={tab.series.map((y) => ({ y }))}
-            height={180}
-            gradientId={`health-${tab.key}`}
-          />
-
-          <View style={s.chartFoot}>
-            <Text style={s.chartFootText}>
-              Start ({tab.series[0]}{tab.unit ? ` ${tab.unit}` : ''})
-            </Text>
-            <Text style={s.chartFootText}>
-              Current ({tab.series[tab.series.length - 1]}{tab.unit ? ` ${tab.unit}` : ''})
-            </Text>
-          </View>
-        </LuxuryCard>
-        )}
+        ))}
 
         <View style={{ height: MS.bottomRoom }} />
       </ScrollView>
+    </View>
+  );
+}
+
+function RangePicker({ range, onChange }) {
+  return (
+    <View style={s.rangeRow}>
+      {RANGES.map((r, i) => (
+        <React.Fragment key={r}>
+          {i > 0 && <Text style={s.rangeSep}>·</Text>}
+          <TouchableOpacity onPress={() => onChange(r)} activeOpacity={0.75} hitSlop={6}>
+            <Text style={[s.rangeText, r === range && s.rangeTextOn]}>{r}</Text>
+          </TouchableOpacity>
+        </React.Fragment>
+      ))}
     </View>
   );
 }
@@ -253,16 +223,20 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', color: MC.textTertiary,
   },
 
-  segment: {
-    height: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    borderBottomWidth: 1, borderBottomColor: MC.cardBorder,
-  },
-  segmentBtn: { alignItems: 'center', paddingBottom: 6 },
-  segmentText: { fontFamily: MF.medium, fontSize: 12, color: MC.textTertiary },
-  segmentTextOn: { color: MC.text },
-  segmentUnderline: { height: 2, borderRadius: 1, alignSelf: 'stretch', marginTop: 4 },
+  scroll: { paddingHorizontal: MS.hMargin, paddingTop: 16, gap: 12 },
 
-  scroll: { paddingHorizontal: MS.hMargin, paddingTop: 16, gap: 16 },
+  sectionLabel: {
+    fontFamily: MF.semibold, fontSize: 11, letterSpacing: 1.4,
+    textTransform: 'uppercase', color: MC.textTertiary,
+  },
+  wearableHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  heroInline: {
+    fontFamily: MF.monoSemi, fontSize: 15, color: MC.text,
+    fontVariant: ['tabular-nums'],
+  },
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

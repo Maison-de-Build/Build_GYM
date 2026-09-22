@@ -35,7 +35,9 @@ import {
   logSet, completeWorkout,
 } from '../../services/workoutService';
 import { sequenceOf, targetLine } from '../../utils/mdbWorkout';
-import { secondsToMmss } from '../../utils/measurement';
+import {
+  secondsToMmss, mmssToSeconds, metersToKm, kmToMeters, inputFieldsFor,
+} from '../../utils/measurement';
 
 // DB truth (set_logs.set_type enum): normal | warmup | drop | failure. There is
 // no 'working' value — sending it silently fails every insert (Postgres
@@ -56,6 +58,10 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
   const [setType, setSetType] = useState('normal');
   const [reps, setReps] = useState('');
   const [weight, setWeight] = useState('');
+  // Time and distance used to be typed into the `reps` box under a "REPS"
+  // label; they get their own state and their own column now.
+  const [timeText, setTimeText] = useState('');
+  const [distText, setDistText] = useState('');
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const [plateFor, setPlateFor] = useState(null);
@@ -137,8 +143,12 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
   useEffect(() => {
     if (!current) return;
     const last = currentSets[currentSets.length - 1];
-    setReps(String(last?.actualReps ?? current.targetReps ?? ''));
-    setWeight(String(last?.actualWeight ?? current.targetWeight ?? ''));
+    setReps(str(last?.actualReps ?? current.targetReps));
+    setWeight(str(last?.actualWeight ?? current.targetWeight));
+    const secs = last?.actualTimeSeconds ?? current.targetTimeSeconds;
+    setTimeText(secs != null ? secondsToMmss(secs) : '');
+    const metres = last?.actualDistance ?? current.targetDistance;
+    setDistText(metres != null ? String(metersToKm(metres)) : '');
   }, [current?.id, currentSets.length]);
 
   // A plate-calc sheet left open across an exercise switch would confirm its
@@ -152,8 +162,11 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
     if (!current || !log?.id) return;
     // Fewer sets than planned is fine; more is not (Doc-N round-4 §4).
     if (current.targetSets && currentSets.length >= current.targetSets) return;
+    const values = valuesFor(current, { reps, weight, timeText, distText });
+    // Backs the disabled button below — never post a set the server will
+    // reject (0 kg on a loaded lift, a weight on a plank, missing reps).
+    if (setValueError(current, values)) return;
     const setNumber = nextSetNumber;
-    const values = valuesFor(current.measurementType, reps, weight);
     const idempotencyKey = `${log.id}:${current.id}:${setNumber}`;
 
     // Optimistic — the row lands immediately, reconciled on response.
@@ -312,8 +325,12 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
                 totalTarget={totalTarget}
                 reps={reps}
                 weight={weight}
+                timeText={timeText}
+                distText={distText}
                 onReps={setReps}
                 onWeight={setWeight}
+                onTime={setTimeText}
+                onDist={setDistText}
                 setType={setType}
                 onCycleSetType={() =>
                   setSetType((t) => SET_TYPES[(SET_TYPES.indexOf(t) + 1) % SET_TYPES.length])}
@@ -382,9 +399,7 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
 
 /* ── Collapsed row: completed (amber tick) or upcoming (0.6 opacity) ─────── */
 function CollapsedExercise({ exercise, sets, done, queueLabel, onPress }) {
-  const summary = done && sets.length
-    ? `${sets.length} × ${sets.map((st) => st.actualReps ?? '—').join(', ')} @ ${uniqueWeights(sets)}`
-    : targetLine(exercise);
+  const summary = done && sets.length ? loggedSummary(exercise, sets) : targetLine(exercise);
 
   return (
     <TouchableOpacity
@@ -415,11 +430,20 @@ function CollapsedExercise({ exercise, sets, done, queueLabel, onPress }) {
 
 /* ── The expanded workbench card ─────────────────────────────────────────── */
 function ActiveExerciseCard({
-  exercise, sets, setNumber, totalTarget, reps, weight, onReps, onWeight,
+  exercise, sets, setNumber, totalTarget, reps, weight, timeText, distText,
+  onReps, onWeight, onTime, onDist,
   setType, onCycleSetType, onLog, rest, onAdjustRest, onPlateCalc,
 }) {
+  const type = exercise.measurementType || 'weight_reps';
+  // The table used to be a fixed SET/REPS/KG grid for every type, so a plank
+  // asked for reps and kilos. inputFieldsFor is the pack's own answer to
+  // which boxes a type needs.
+  const fields = inputFieldsFor(type);
   const isBarbell = exercise.equipmentType === 'barbell';
   const capped = !!exercise.targetSets && sets.length >= exercise.targetSets;
+  const values = valuesFor(exercise, { reps, weight, timeText, distText });
+  const valueError = setValueError(exercise, values);
+  const blocked = capped || !!valueError;
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -465,16 +489,18 @@ function ActiveExerciseCard({
       <View style={s.table}>
         <View style={s.tableHead}>
           <Text style={[s.th, s.colSet]}>SET</Text>
-          <Text style={[s.th, s.colMid]}>REPS</Text>
-          <Text style={[s.th, s.colMid]}>KG</Text>
+          {fields.map((f) => (
+            <Text key={f} style={[s.th, s.colMid]}>{COLUMN_LABEL[f]}</Text>
+          ))}
           <Text style={[s.th, s.colStatus]}>STATUS</Text>
         </View>
 
         {sets.map((st) => (
           <View key={st.setNumber} style={s.tableRowDone}>
             <Text style={[s.tdIndex, s.colSet]}>{st.setNumber}</Text>
-            <Text style={[s.tdValue, s.colMid]}>{st.actualReps ?? '—'}</Text>
-            <Text style={[s.tdValue, s.colMid]}>{fmtKg(st.actualWeight)}</Text>
+            {fields.map((f) => (
+              <Text key={f} style={[s.tdValue, s.colMid]}>{loggedCell(f, st)}</Text>
+            ))}
             <View style={[s.colStatus, s.statusCell]}>
               {st.unsynced
                 ? <MdbIcon name="refresh" size={14} color={MC.textTertiary} />
@@ -492,37 +518,30 @@ function ActiveExerciseCard({
             <Text style={s.tdIndexCurrent}>{setNumber}</Text>
           </View>
 
-          <View style={[s.colMid, s.inputCell]}>
-            <TextInput
-              style={s.input}
-              value={reps}
-              onChangeText={onReps}
-              keyboardType="number-pad"
-              placeholder={String(exercise.targetReps ?? '')}
-              placeholderTextColor={MC.textTertiary}
-              selectionColor={MC.violetLight}
-            />
-          </View>
-
-          <View style={[s.colMid, s.inputCell]}>
-            <TextInput
-              style={s.input}
-              value={weight}
-              onChangeText={onWeight}
-              keyboardType="decimal-pad"
-              placeholder={String(exercise.targetWeight ?? '')}
-              placeholderTextColor={MC.textTertiary}
-              selectionColor={MC.violetLight}
-            />
-          </View>
+          {fields.map((f) => {
+            const cell = INPUT_CELL[f];
+            return (
+              <View key={f} style={[s.colMid, s.inputCell]}>
+                <TextInput
+                  style={s.input}
+                  value={{ reps, weight, time: timeText, distance: distText }[f]}
+                  onChangeText={{ reps: onReps, weight: onWeight, time: onTime, distance: onDist }[f]}
+                  keyboardType={cell.keyboard}
+                  placeholder={cell.placeholder(exercise)}
+                  placeholderTextColor={MC.textTertiary}
+                  selectionColor={MC.violetLight}
+                />
+              </View>
+            );
+          })}
 
           <View style={[s.colStatus, s.statusCell]}>
-            <TouchableOpacity onPress={onLog} activeOpacity={0.85} disabled={capped}>
+            <TouchableOpacity onPress={onLog} activeOpacity={0.85} disabled={blocked}>
               <LinearGradient
                 colors={MG.primary}
                 start={MG.start}
                 end={MG.end}
-                style={[s.logBtn, capped && s.logBtnDisabled]}
+                style={[s.logBtn, blocked && s.logBtnDisabled]}
               >
                 <MdbIcon name="check-bold" size={16} color={MC.white} />
               </LinearGradient>
@@ -534,8 +553,10 @@ function ActiveExerciseCard({
       {/* ── Action chips ───────────────────────────────────────────────── */}
       <View style={s.chipRow}>
         <View style={s.addSet}>
-          <Text style={s.addSetHint}>
-            {capped ? `Target reached (${totalTarget} of ${totalTarget})` : `Set ${setNumber}${totalTarget ? ` of ${totalTarget}` : ''}`}
+          <Text style={[s.addSetHint, !capped && !!valueError && s.addSetHintWarn]}>
+            {capped
+              ? `Target reached (${totalTarget} of ${totalTarget})`
+              : valueError || `Set ${setNumber}${totalTarget ? ` of ${totalTarget}` : ''}`}
           </Text>
         </View>
         <TouchableOpacity style={s.typeChip} onPress={onCycleSetType} activeOpacity={0.8}>
@@ -608,21 +629,96 @@ const groupSets = (rows = []) => {
   return out;
 };
 
-const valuesFor = (type, reps, weight) => {
-  switch (type) {
-    case 'reps': return { actualReps: Number(reps) || 0 };
-    case 'time': return { actualTimeSeconds: Number(reps) || 0 };
-    case 'distance': return { actualDistance: Number(reps) || 0 };
-    default: return { actualReps: Number(reps) || 0, actualWeight: Number(weight) || 0 };
+/* ── Measurement-driven table columns ────────────────────────────────────── */
+
+const COLUMN_LABEL = { reps: 'REPS', weight: 'KG', time: 'TIME', distance: 'KM' };
+
+const INPUT_CELL = {
+  reps: { keyboard: 'number-pad', placeholder: (ex) => str(ex.targetReps) },
+  // Bodyweight prompts with a dash rather than an empty box, so leaving it
+  // blank reads as a deliberate "no added load" rather than an oversight.
+  weight: {
+    keyboard: 'decimal-pad',
+    placeholder: (ex) => (ex.equipmentType === 'bodyweight' ? '—' : str(ex.targetWeight)),
+  },
+  time: { keyboard: 'numbers-and-punctuation', placeholder: () => 'mm:ss' },
+  distance: { keyboard: 'decimal-pad', placeholder: () => 'km' },
+};
+
+const loggedCell = (field, st) => {
+  switch (field) {
+    case 'reps': return st.actualReps ?? '—';
+    case 'weight': return st.actualWeight == null ? 'BW' : fmtKg(st.actualWeight);
+    case 'time': return st.actualTimeSeconds != null ? secondsToMmss(st.actualTimeSeconds) : '—';
+    case 'distance': return st.actualDistance != null ? String(metersToKm(st.actualDistance)) : '—';
+    default: return '—';
   }
+};
+
+/** Empty string / null → '' so a TextInput never renders the text "null". */
+const str = (v) => (v == null ? '' : String(v));
+
+const num = (v) => {
+  const n = Number(String(v).trim());
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Only the fields this exercise actually measures get sent.
+ *
+ * Weight is null rather than 0 when the box is blank — the two mean very
+ * different things. 0 kg is a claim that nothing was on the bar; null means
+ * no load applies, which is the honest answer for a bodyweight movement and
+ * keeps it out of total_volume instead of dragging tonnage down.
+ */
+const valuesFor = (exercise, { reps, weight, timeText, distText }) => {
+  switch (exercise?.measurementType) {
+    case 'reps': return { actualReps: num(reps) };
+    case 'time': return { actualTimeSeconds: timeText ? mmssToSeconds(timeText) : null };
+    case 'distance': return { actualDistance: distText ? kmToMeters(distText) : null };
+    default: return { actualReps: num(reps), actualWeight: num(weight) };
+  }
+};
+
+/**
+ * Mirror of the server's own check (setValueTypeError in the backend's
+ * workoutMath), so the button explains itself before the request rather than
+ * after a 400. Bodyweight is the deliberate exception to "no zero weight".
+ */
+const setValueError = (exercise, values) => {
+  const type = exercise?.measurementType || 'weight_reps';
+  if (type === 'time') return values.actualTimeSeconds > 0 ? null : 'Enter a time';
+  if (type === 'distance') return values.actualDistance > 0 ? null : 'Enter a distance';
+  if (!(values.actualReps >= 1)) return 'Enter your reps';
+  if (type === 'weight_reps' && exercise?.equipmentType !== 'bodyweight'
+      && !(values.actualWeight > 0)) {
+    return 'Enter the weight you lifted';
+  }
+  return null;
 };
 
 const fmtKg = (v) => (v == null ? '—' : Number(v).toFixed(1));
 
 const uniqueWeights = (sets) => {
   const ws = sets.map((st) => st.actualWeight).filter((w) => w != null);
+  // Reachable at last: the screen used to coerce a blank weight box to 0, so
+  // a bodyweight set was stored as a genuine 0 kg and never took this branch.
   if (!ws.length) return 'Bodyweight';
   return `${[...new Set(ws)].join(', ')} kg`;
+};
+
+/** What a finished exercise reads as once collapsed, per measurement type. */
+const loggedSummary = (exercise, sets) => {
+  switch (exercise?.measurementType) {
+    case 'time':
+      return sets.map((st) => secondsToMmss(st.actualTimeSeconds)).join(' · ');
+    case 'distance':
+      return sets.map((st) => `${metersToKm(st.actualDistance)} km`).join(' · ');
+    case 'reps':
+      return `${sets.length} × ${sets.map((st) => st.actualReps ?? '—').join(', ')}`;
+    default:
+      return `${sets.length} × ${sets.map((st) => st.actualReps ?? '—').join(', ')} @ ${uniqueWeights(sets)}`;
+  }
 };
 
 const s = StyleSheet.create({
@@ -772,6 +868,7 @@ const s = StyleSheet.create({
   chipRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -4 },
   addSet: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   addSetHint: { fontFamily: MF.medium, fontSize: 11, color: MC.textTertiary },
+  addSetHintWarn: { color: MC.warm },
   typeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: MR.sm,

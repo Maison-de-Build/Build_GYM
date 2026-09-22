@@ -17,15 +17,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, ActivityIndicator, RefreshControl,
+  StatusBar, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { MC, MG, MF, MR, MS } from '../../theme/mdbKit';
 import MdbIcon from '../../components/mdb/MdbIcon';
-import { LuxuryCard, EmptyState } from '../../components/mdb/MdbPrimitives';
-import { fetchNutritionPlan, postMealAdherence } from '../../services/nutritionService';
+import { LuxuryCard, EmptyState, PrimaryCta } from '../../components/mdb/MdbPrimitives';
+import { fetchNutritionPlan, postMealAdherence, completeNutritionDay } from '../../services/nutritionService';
 import { isoDate } from '../../utils/mdbWorkout';
 
 const ADHERENCE = [
@@ -41,6 +41,7 @@ export default function MdbNutritionScreen({ navigation }) {
   const [date] = useState(() => isoDate(new Date()));
   const [plan, setPlan] = useState(undefined); // undefined = loading, null = none
   const [refreshing, setRefreshing] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   const load = useCallback(async () => {
     try { setPlan(await fetchNutritionPlan(date) || null); }
@@ -59,23 +60,52 @@ export default function MdbNutritionScreen({ navigation }) {
   }, [meals]);
 
   const followedCount = meals.filter((m) => m.adherence === 'followed').length;
+  const locked = !!plan?.dayLocked;
+  const allMarked = meals.length > 0 && meals.every((m) => !!m.adherence);
 
   const mark = async (meal, status) => {
-    const next = meal.adherence === status ? null : status;
+    if (locked) return;
+    // Re-tapping the current status used to clear it locally and then return
+    // without telling the server — there is no clear verb — so the mark
+    // silently came back on the next refresh. A no-op is the honest answer.
+    if (meal.adherence === status) return;
     // Optimistic — the row flips instantly, reverts if the write fails.
     setPlan((p) => ({
       ...p,
-      meals: p.meals.map((m) => (m.id === meal.id ? { ...m, adherence: next } : m)),
+      meals: p.meals.map((m) => (m.id === meal.id ? { ...m, adherence: status } : m)),
     }));
-    if (!next) return; // the API has no "clear" verb; leaving it is the safe no-op
     try {
-      await postMealAdherence({ mealId: meal.id, date, status: next });
+      await postMealAdherence({ mealId: meal.id, date, status });
     } catch {
       setPlan((p) => ({
         ...p,
         meals: p.meals.map((m) => (m.id === meal.id ? { ...m, adherence: meal.adherence } : m)),
       }));
     }
+  };
+
+  const completeDay = () => {
+    Alert.alert(
+      'Complete the day?',
+      "You won't be able to change today's meals after this.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          onPress: async () => {
+            setCompleting(true);
+            try {
+              await completeNutritionDay(date);
+              await load();
+            } catch (e) {
+              Alert.alert('Could not complete', e?.response?.data?.message || 'Please try again.');
+            } finally {
+              setCompleting(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (plan === undefined) {
@@ -123,9 +153,16 @@ export default function MdbNutritionScreen({ navigation }) {
           <LuxuryCard style={s.heroCard}>
             <View style={s.heroHead}>
               <Text style={s.eyebrow}>DAILY TARGETS</Text>
-              <Text style={s.adherenceCount}>
-                {followedCount} of {meals.length} meals followed
-              </Text>
+              {locked ? (
+                <View style={s.lockedChip}>
+                  <MdbIcon name="check" size={10} color={MC.fresh} />
+                  <Text style={s.lockedChipText}>COMPLETED</Text>
+                </View>
+              ) : (
+                <Text style={s.adherenceCount}>
+                  {followedCount} of {meals.length} meals followed
+                </Text>
+              )}
             </View>
 
             <View style={s.bars}>
@@ -155,7 +192,9 @@ export default function MdbNutritionScreen({ navigation }) {
           <View style={s.mealsSection}>
             <View style={s.mealsHead}>
               <Text style={s.sectionLabel}>PRESCRIBED MEALS</Text>
-              <Text style={s.mealsHint}>Tap to mark adherence</Text>
+              <Text style={s.mealsHint}>
+                {locked ? 'Day completed — locked' : 'Tap to mark adherence'}
+              </Text>
             </View>
 
             {meals.map((meal) => (
@@ -187,9 +226,11 @@ export default function MdbNutritionScreen({ navigation }) {
                         style={[
                           s.adherenceBtn,
                           on && { borderColor: opt.color, backgroundColor: `${opt.color}1F` },
+                          locked && !on && s.adherenceBtnMuted,
                         ]}
                         onPress={() => mark(meal, opt.key)}
-                        activeOpacity={0.85}
+                        activeOpacity={locked ? 1 : 0.85}
+                        disabled={locked}
                       >
                         <Text style={[s.adherenceText, on && { color: opt.color }]}>{opt.label}</Text>
                       </TouchableOpacity>
@@ -199,6 +240,20 @@ export default function MdbNutritionScreen({ navigation }) {
               </LuxuryCard>
             ))}
           </View>
+
+          {!locked && meals.length > 0 && (
+            <View style={s.completeWrap}>
+              <PrimaryCta
+                label={completing ? 'COMPLETING…' : 'COMPLETE DAY'}
+                onPress={completeDay}
+                disabled={!allMarked || completing}
+                icon={null}
+              />
+              {!allMarked && (
+                <Text style={s.completeHint}>Mark every meal to finish the day</Text>
+              )}
+            </View>
+          )}
 
           <View style={{ height: MS.bottomRoom }} />
         </ScrollView>
@@ -312,4 +367,20 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: MC.cardBorder,
   },
   adherenceText: { fontFamily: MF.medium, fontSize: 11, color: MC.textSecondary },
+  adherenceBtnMuted: { opacity: 0.4 },
+
+  lockedChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: MR.xs,
+    backgroundColor: 'rgba(52,211,153,0.10)',
+    borderWidth: 1, borderColor: 'rgba(52,211,153,0.30)',
+  },
+  lockedChipText: {
+    fontFamily: MF.semibold, fontSize: 9, letterSpacing: 0.8, color: MC.fresh,
+  },
+
+  completeWrap: { gap: 8, marginTop: 4 },
+  completeHint: {
+    fontFamily: MF.regular, fontSize: 10, color: MC.textTertiary, textAlign: 'center',
+  },
 });

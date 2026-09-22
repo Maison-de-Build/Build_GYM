@@ -17,26 +17,32 @@ import MdbIcon from './MdbIcon';
 
 // Sensible per-type defaults for a freshly-selected exercise.
 export const newAdhocEntry = () => ({
-  sets: '3', reps: '10', weight: '0', rest: '90', time: '01:00', distance: '1',
+  sets: '3', rest: '90', time: '01:00', distance: '1',
 });
 
-/** entry(ies) → the backend's `exercises[]` bundle payload shape. */
+/** Sets are capped 1–10 server-side; clamp here so it can't 400 with no hint. */
+export const clampSets = (v) => String(Math.min(10, Math.max(1, parseInt(v, 10) || 3)));
+
+/**
+ * entry(ies) → the backend's `exercises[]` bundle payload shape.
+ *
+ * Reps and weight are deliberately sent as null for the rep-based types.
+ * Scheduling a workout is about *what* you'll do, not how heavy — that is a
+ * per-set decision made in the session. Null also matters mechanically:
+ * buildSnapshot() carries forward the member's last logged weight for an
+ * exercise only when targetWeight is null, so the old default of 0 was
+ * actively suppressing that and prescribing 0 kg.
+ */
 export function adhocEntriesToPayload(map) {
   return [...map.entries()].map(([exerciseId, { entry, exercise }], i) => {
     const type = exercise.measurementType || 'weight_reps';
     const row = {
       exerciseId, order: i + 1,
-      sets: parseInt(entry.sets, 10) || 3,
+      sets: parseInt(clampSets(entry.sets), 10),
       restSeconds: parseInt(entry.rest, 10) || 90,
       targetReps: null, targetWeight: null, targetTimeSeconds: null, targetDistance: null,
     };
-    if (type === 'weight_reps') {
-      row.targetReps = parseInt(entry.reps, 10) || 10;
-      row.targetWeight = parseFloat(entry.weight) || 0;
-      row.weightMode = 'absolute';
-    } else if (type === 'reps') {
-      row.targetReps = parseInt(entry.reps, 10) || 10;
-    } else if (type === 'time') {
+    if (type === 'time') {
       const [m, sec] = String(entry.time || '0:00').split(':').map((p) => parseInt(p, 10) || 0);
       row.targetTimeSeconds = m * 60 + sec;
     } else if (type === 'distance') {
@@ -63,36 +69,44 @@ export default function AdhocExerciseRow({ exercise, entry, onToggle, onChangeFi
       </TouchableOpacity>
 
       {selected && (
-        <View style={s.targets}>
-          <TargetInput label="Sets" value={entry.sets} onChange={(v) => onChangeField('sets', v)} />
-          <MeasurementInputs exercise={exercise} entry={entry} onChange={onChangeField} />
-          <TargetInput label="Rest (s)" value={entry.rest} onChange={(v) => onChangeField('rest', v)} />
+        <View style={s.targetsWrap}>
+          <View style={s.targets}>
+            <TargetInput
+              label="Sets"
+              value={entry.sets}
+              onChange={(v) => onChangeField('sets', v)}
+              onBlur={() => onChangeField('sets', clampSets(entry.sets))}
+            />
+            <MeasurementInputs exercise={exercise} entry={entry} onChange={onChangeField} />
+            <TargetInput label="Rest (s)" value={entry.rest} onChange={(v) => onChangeField('rest', v)} />
+          </View>
+          {repsAreLive(exercise) && (
+            <Text style={s.laterHint}>Reps and weight are set per set during the workout</Text>
+          )}
         </View>
       )}
     </View>
   );
 }
 
+/**
+ * Only the targets that are genuinely part of a *plan* get asked for here.
+ * A duration or a distance is the exercise ("run 2 km"), so those stay; reps
+ * and weight are per-set choices made while lifting, so weight_reps and reps
+ * add nothing beyond the shared Sets + Rest.
+ */
 function MeasurementInputs({ exercise, entry, onChange }) {
   const type = exercise.measurementType || 'weight_reps';
-  if (type === 'reps') {
-    return <TargetInput label="Reps" value={entry.reps} onChange={(v) => onChange('reps', v)} />;
-  }
   if (type === 'time') {
     return <TargetInput label="Time (mm:ss)" value={entry.time} keyboard="numbers-and-punctuation" onChange={(v) => onChange('time', v)} />;
   }
   if (type === 'distance') {
     return <TargetInput label="Distance (km)" value={entry.distance} onChange={(v) => onChange('distance', v)} />;
   }
-  return (
-    <>
-      <TargetInput label="Reps" value={entry.reps} onChange={(v) => onChange('reps', v)} />
-      <TargetInput label="kg" value={entry.weight} onChange={(v) => onChange('weight', v)} />
-    </>
-  );
+  return null;
 }
 
-function TargetInput({ label, value, onChange, keyboard = 'decimal-pad' }) {
+function TargetInput({ label, value, onChange, onBlur, keyboard = 'decimal-pad' }) {
   return (
     <View style={s.targetInput}>
       <Text style={s.targetLabel}>{label}</Text>
@@ -100,12 +114,19 @@ function TargetInput({ label, value, onChange, keyboard = 'decimal-pad' }) {
         style={s.targetField}
         value={value}
         onChangeText={onChange}
+        onBlur={onBlur}
         keyboardType={keyboard}
         placeholderTextColor={MC.textTertiary}
       />
     </View>
   );
 }
+
+/** True for the types whose numbers are decided set by set, not up front. */
+const repsAreLive = (ex) => {
+  const t = ex?.measurementType || 'weight_reps';
+  return t === 'weight_reps' || t === 'reps';
+};
 
 const titleCase = (s2) => String(s2 || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -120,10 +141,14 @@ const s = StyleSheet.create({
   name: { fontFamily: MF.medium, fontSize: 14, color: MC.text },
   equip: { fontFamily: MF.regular, fontSize: 11, color: MC.textTertiary, marginTop: 2 },
 
+  targetsWrap: { backgroundColor: 'rgba(120,61,236,0.06)', paddingBottom: 10 },
   targets: {
     flexDirection: 'row', gap: 8,
     paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: 'rgba(120,61,236,0.06)',
+  },
+  laterHint: {
+    fontFamily: MF.regular, fontSize: 10, color: MC.textTertiary,
+    paddingHorizontal: 16,
   },
   targetInput: { flex: 1 },
   targetLabel: { fontFamily: MF.medium, fontSize: 9, color: MC.textTertiary, marginBottom: 3 },

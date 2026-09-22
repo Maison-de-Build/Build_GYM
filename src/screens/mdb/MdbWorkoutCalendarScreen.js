@@ -182,6 +182,11 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={MC.violetLight} />
           }
         >
+          {/* Insights / Nutrition / Recovery live up here rather than buried
+              in a chip row at the foot of the page — they're the surfaces
+              that give the training itself meaning. */}
+          <MdbSecondaryNav navigation={navigation} showNutrition={true} />
+
           {/* ── TODAY'S WORKOUT CARD (view/schedule only — logging lives on Home) */}
           {workout ? (
             <WorkoutDayCard
@@ -264,7 +269,6 @@ export default function MdbWorkoutCalendarScreen({ navigation }) {
             </View>
           )}
 
-          <MdbSecondaryNav navigation={navigation} showNutrition={true} />
           <BrandFooter note="Private PT Agenda" />
           <View style={{ height: MS.bottomRoom }} />
         </ScrollView>

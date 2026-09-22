@@ -24,6 +24,7 @@ import { LuxuryCard } from '../../components/mdb/MdbPrimitives';
 import MdbIcon from '../../components/mdb/MdbIcon';
 import { MC, MF as MdbFont } from '../../theme/mdbKit';
 import useMemberMode from '../../hooks/useMemberMode';
+import useWorkoutActions from '../../hooks/useWorkoutActions';
 
 // Mockup accent palette (kept as literals — multi-colour KPI / quick-access tiles).
 const AMBER = '#F59E0B';
@@ -124,7 +125,12 @@ export default function HomeScreen({ navigation }) {
     ]);
   }, []);
 
+  const workoutActions = useWorkoutActions(navigation, loadContent);
+
   useEffect(() => { loadContent(); }, [loadContent]);
+  // Scheduling, editing and removing all happen on other screens, so today's
+  // card would otherwise go stale the moment the member comes back.
+  useEffect(() => navigation.addListener('focus', loadContent), [navigation, loadContent]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -268,11 +274,12 @@ export default function HomeScreen({ navigation }) {
                 workout={todayInstances[0]}
                 onBegin={() => navigation.navigate('MdbActiveSession', { instanceId: todayInstances[0].id, instance: todayInstances[0] })}
                 onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: todayInstances[0].id, live: true })}
+                {...workoutActions(todayInstances[0])}
               />
               {!isPt && (
                 <TouchableOpacity
                   style={styles.addMoreRow}
-                  onPress={() => navigation.navigate('MdbTemplateBrowser', { date: isoDate(now) })}
+                  onPress={() => navigation.navigate('MdbTrainingHub')}
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
@@ -301,7 +308,7 @@ export default function HomeScreen({ navigation }) {
               {!isPt && (
                 <TouchableOpacity
                   style={styles.addMoreRow}
-                  onPress={() => navigation.navigate('MdbTemplateBrowser', { date: isoDate(now) })}
+                  onPress={() => navigation.navigate('MdbTrainingHub')}
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
@@ -313,7 +320,7 @@ export default function HomeScreen({ navigation }) {
             <View style={{ marginTop: 8 }}>
               <WorkoutEmptyState
                 variant={isPt ? 'pt' : 'freestyle'}
-                onAdd={() => navigation.navigate('MdbTemplateBrowser', { date: isoDate(now) })}
+                onAdd={() => navigation.navigate('MdbTrainingHub')}
               />
             </View>
           )}

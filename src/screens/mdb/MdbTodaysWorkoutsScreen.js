@@ -18,8 +18,8 @@ import MdbIcon from '../../components/mdb/MdbIcon';
 import WorkoutDayCard from '../../components/mdb/WorkoutDayCard';
 import WorkoutEmptyState from '../../components/mdb/WorkoutEmptyState';
 import useMemberMode from '../../hooks/useMemberMode';
+import useWorkoutActions from '../../hooks/useWorkoutActions';
 import { fetchInstances } from '../../services/workoutService';
-import { isoDate } from '../../utils/mdbWorkout';
 
 export default function MdbTodaysWorkoutsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -39,7 +39,11 @@ export default function MdbTodaysWorkoutsScreen({ navigation }) {
     }
   }, []);
 
+  const workoutActions = useWorkoutActions(navigation, load);
+
   useEffect(() => { load(); }, [load]);
+  // Editing happens on another screen, so pick the changes up on the way back.
+  useEffect(() => navigation.addListener('focus', load), [navigation, load]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -70,7 +74,7 @@ export default function MdbTodaysWorkoutsScreen({ navigation }) {
           {instances.length === 0 ? (
             <WorkoutEmptyState
               variant={isPt ? 'pt' : 'freestyle'}
-              onAdd={() => navigation.navigate('MdbTemplateBrowser', { date: isoDate(new Date()) })}
+              onAdd={() => navigation.navigate('MdbTrainingHub')}
             />
           ) : (
             instances.map((w) => (
@@ -79,6 +83,7 @@ export default function MdbTodaysWorkoutsScreen({ navigation }) {
                 workout={w}
                 onBegin={() => navigation.navigate('MdbActiveSession', { instanceId: w.id, instance: w })}
                 onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: w.id })}
+                {...workoutActions(w)}
               />
             ))
           )}

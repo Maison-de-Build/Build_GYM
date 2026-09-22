@@ -47,9 +47,12 @@ const MODES = [{ key: 'templates', label: 'Templates' }, { key: 'exercises', lab
 
 export default function MdbTemplateBrowserScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const { date, preselectTemplateId } = route.params || {};
+  const { date, preselectTemplateId, pickOnly = false, onPicked } = route.params || {};
 
-  const [mode, setMode] = useState('templates');
+  // `pickOnly` reuses this screen as a plain exercise picker for the edit
+  // flow: no Templates tab, no scheduling — it hands the chosen rows back to
+  // whoever opened it. Same interaction, one implementation.
+  const [mode, setMode] = useState(pickOnly ? 'exercises' : 'templates');
 
   /* ── Templates tab state ─────────────────────────────────────────────── */
   const [tags, setTags] = useState({ category: [], activity_target: [], frequency_fit: [] });
@@ -151,7 +154,24 @@ export default function MdbTemplateBrowserScreen({ route, navigation }) {
   };
 
   const filteredExercises = exercises.filter((ex) => ex.name.toLowerCase().includes(search.toLowerCase()));
-  const count = selectedTemplateIds.size + (adhocMap.size ? 1 : 0);
+  // The whole ad-hoc bundle lands as one workout, so it counts as 1 when
+  // scheduling — but in pickOnly mode the caller wants the exercises
+  // themselves, so count them individually there.
+  const count = pickOnly ? adhocMap.size : selectedTemplateIds.size + (adhocMap.size ? 1 : 0);
+
+  const handOff = useCallback(() => {
+    if (!adhocMap.size) return;
+    onPicked?.(adhocEntriesToPayload(adhocMap).map((row) => {
+      const picked = adhocMap.get(row.exerciseId)?.exercise;
+      return {
+        ...row,
+        name: picked?.name,
+        measurementType: picked?.measurementType || 'weight_reps',
+        equipmentType: picked?.equipmentType ?? null,
+      };
+    }));
+    navigation.goBack();
+  }, [adhocMap, onPicked, navigation]);
 
   const commit = useCallback(async (collisionStrategy = 'add') => {
     if (count === 0 || submitting) return;
@@ -193,13 +213,15 @@ export default function MdbTemplateBrowserScreen({ route, navigation }) {
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7} hitSlop={8}>
           <MdbIcon name="chevron-left" size={20} color={MC.textSecondary} />
         </TouchableOpacity>
-        <Text style={s.topTitle}>Choose a Workout</Text>
+        <Text style={s.topTitle}>{pickOnly ? 'Add Exercises' : 'Choose a Workout'}</Text>
         <View style={s.backBtn} />
       </View>
 
-      <SegmentedRange options={MODES} value={mode} onChange={setMode} style={s.segment} />
+      {!pickOnly && (
+        <SegmentedRange options={MODES} value={mode} onChange={setMode} style={s.segment} />
+      )}
 
-      {blocked ? (
+      {blocked && !pickOnly ? (
         <EmptyState
           title="Your coach programmes your workouts"
           subtitle="The template library is for members training without a personal trainer."
@@ -352,11 +374,13 @@ export default function MdbTemplateBrowserScreen({ route, navigation }) {
       )}
 
       {/* ── Sticky commit bar ────────────────────────────────────────────── */}
-      {!blocked && (
+      {(!blocked || pickOnly) && (
         <View style={[s.commitBar, { paddingBottom: 12 + insets.bottom }]}>
           <PrimaryCta
-            label={submitting ? 'SCHEDULING…' : `SCHEDULE ${count} FOR ${friendlyDate(date)}`}
-            onPress={() => commit('add')}
+            label={pickOnly
+              ? `ADD ${count} EXERCISE${count === 1 ? '' : 'S'}`
+              : submitting ? 'SCHEDULING…' : `SCHEDULE ${count} FOR ${friendlyDate(date)}`}
+            onPress={pickOnly ? handOff : () => commit('add')}
             disabled={count === 0 || submitting}
             icon={null}
           />

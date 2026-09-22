@@ -12,8 +12,8 @@
  * tapping. A completed workout still shows COMPLETED on any day, because that is
  * a status, not an action.
  */
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable } from 'react-native';
 
 import { MC, MF, MR } from '../../theme/mdbKit';
 import MdbIcon from './MdbIcon';
@@ -23,7 +23,10 @@ import {
   sequenceOf, estimatedMinutes, intensityLabel, focusLabel, initialsOf,
 } from '../../utils/mdbWorkout';
 
-export default function WorkoutDayCard({ workout, onBegin, onViewCompleted, readOnly = false, readOnlyReason }) {
+export default function WorkoutDayCard({
+  workout, onBegin, onViewCompleted, readOnly = false, readOnlyReason,
+  onEdit, onRemove,
+}) {
   const sequence = sequenceOf(workout);
   const est = estimatedMinutes(sequence);
   const intensity = intensityLabel(sequence);
@@ -31,6 +34,14 @@ export default function WorkoutDayCard({ workout, onBegin, onViewCompleted, read
   const coach = workout?.trainerName || workout?.assignedByName || null;
   const isCompleted = workout?.status === 'completed' || workout?.status === 'partial';
   const inProgress = workout?.status === 'in_progress';
+
+  // Whether this workout may be changed at all is the parent's call — it knows
+  // whether the member added it themselves and whether it has been started.
+  // Passing neither handler leaves the card exactly as it was.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hasMenu = !!onEdit || !!onRemove;
+
+  const pick = (fn) => { setMenuOpen(false); fn?.(); };
 
   return (
     <LuxuryCard style={s.card}>
@@ -52,7 +63,47 @@ export default function WorkoutDayCard({ workout, onBegin, onViewCompleted, read
             <Text style={s.coachName} numberOfLines={1}>{coach}</Text>
           </View>
         )}
+
+        {hasMenu && (
+          <TouchableOpacity
+            style={s.menuBtn}
+            onPress={() => setMenuOpen(true)}
+            activeOpacity={0.7}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Workout options"
+          >
+            <MdbIcon name="more-vertical" size={18} color={MC.textTertiary} />
+          </TouchableOpacity>
+        )}
       </View>
+
+      {hasMenu && (
+        <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+          <Pressable style={s.menuBackdrop} onPress={() => setMenuOpen(false)}>
+            <View style={s.menuSheet}>
+              <Text style={s.menuTitle} numberOfLines={1}>
+                {workout?.snapshot?.name || 'Workout'}
+              </Text>
+              {!!onEdit && (
+                <TouchableOpacity style={s.menuRow} onPress={() => pick(onEdit)} activeOpacity={0.75}>
+                  <MdbIcon name="edit" size={16} color={MC.textSecondary} />
+                  <Text style={s.menuText}>Edit workout</Text>
+                </TouchableOpacity>
+              )}
+              {!!onRemove && (
+                <TouchableOpacity style={s.menuRow} onPress={() => pick(onRemove)} activeOpacity={0.75}>
+                  <MdbIcon name="trash" size={16} color={MC.workedSolid} />
+                  <Text style={[s.menuText, { color: MC.workedSolid }]}>Remove workout</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={s.menuCancel} onPress={() => setMenuOpen(false)} activeOpacity={0.75}>
+                <Text style={s.menuCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
 
       <View style={s.statRow}>
         <Stat icon="list" tint={MC.cyan} value={String(sequence.length)} label="Exercises" />
@@ -129,6 +180,33 @@ const s = StyleSheet.create({
     fontFamily: MF.medium, fontSize: 10, letterSpacing: 0.8,
     textTransform: 'uppercase', color: MC.textTertiary, marginTop: 1,
   },
+
+  menuBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginRight: -6 },
+  menuBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end', padding: 16,
+  },
+  menuSheet: {
+    // Solid, not MC.card — that token is translucent and would let the
+    // dimmed page show through the sheet.
+    backgroundColor: MC.surfaceRaised, borderRadius: MR.card,
+    borderWidth: 1, borderColor: MC.cardBorder, overflow: 'hidden',
+  },
+  menuTitle: {
+    fontFamily: MF.semibold, fontSize: 12, color: MC.textTertiary,
+    letterSpacing: 0.4, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8,
+  },
+  menuRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 15,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  menuText: { fontFamily: MF.medium, fontSize: 14, color: MC.text },
+  menuCancel: {
+    alignItems: 'center', paddingVertical: 14,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  menuCancelText: { fontFamily: MF.medium, fontSize: 13, color: MC.textTertiary },
 
   lockedCta: {
     height: 46, borderRadius: MR.button,

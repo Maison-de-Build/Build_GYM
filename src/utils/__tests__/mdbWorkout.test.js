@@ -5,6 +5,7 @@ import {
   initialsOf, titleCase, relativeDateTime,
   STRIP_BEFORE, STRIP_AFTER,
 } from '../mdbWorkout.js';
+import { formatTarget } from '../measurement.js';
 
 /* ── isoDate ─────────────────────────────────────────────────────────────── */
 describe('isoDate', () => {
@@ -583,5 +584,35 @@ describe('prHeadlineLabel', () => {
     expect(prHeadlineLabel({ volume: 3421 })).toBe('3,421 kg volume');
     expect(prHeadlineLabel(null)).toBe('—');
     expect(prHeadlineLabel({})).toBe('—');
+  });
+});
+
+describe('formatTarget with no rep/weight target', () => {
+  // Scheduling a workout no longer asks for reps or weight — those are chosen
+  // set by set while training — so a null rep target is normal data now, not
+  // missing data, and must not render as "3 × —".
+  it('renders sets alone for weight_reps', () => {
+    expect(formatTarget({ measurementType: 'weight_reps', sets: 3 })).toBe('3 sets');
+    expect(formatTarget({ measurementType: 'weight_reps', sets: 1 })).toBe('1 set');
+  });
+
+  it('renders sets alone for reps', () => {
+    expect(formatTarget({ measurementType: 'reps', sets: 4 })).toBe('4 sets');
+  });
+
+  it('keeps a carried-forward weight alongside the set count', () => {
+    expect(formatTarget({ measurementType: 'weight_reps', sets: 3, targetWeight: 40 }))
+      .toBe('3 sets @ 40 kg');
+  });
+
+  it('still renders the classic line when a rep target exists', () => {
+    expect(formatTarget({ measurementType: 'weight_reps', sets: 4, targetReps: 8, targetWeight: 60 }))
+      .toBe('4 × 8 @ 60 kg');
+    expect(formatTarget({ measurementType: 'reps', sets: 3, targetReps: 12 })).toBe('3 × 12');
+  });
+
+  it('leaves time and distance targets untouched', () => {
+    expect(formatTarget({ measurementType: 'time', sets: 3, targetTimeSeconds: 120 })).toBe('3 × 02:00');
+    expect(formatTarget({ measurementType: 'distance', sets: 1, targetDistance: 2000 })).toBe('1 × 2 km');
   });
 });

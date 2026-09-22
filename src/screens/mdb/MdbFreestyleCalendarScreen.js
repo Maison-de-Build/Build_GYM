@@ -27,6 +27,7 @@ import { BackPill, BrandFooter } from '../../components/mdb/MdbPrimitives';
 import WorkoutDayCard from '../../components/mdb/WorkoutDayCard';
 import WorkoutEmptyState from '../../components/mdb/WorkoutEmptyState';
 import MdbSecondaryNav from '../../components/mdb/MdbSecondaryNav';
+import useWorkoutActions from '../../hooks/useWorkoutActions';
 import { fetchInstances, fetchInstancesRange, fetchMuscleRecovery, browseTemplates } from '../../services/workoutService';
 import {
   buildDayStrip, estimatedMinutes,
@@ -68,6 +69,10 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  // Scheduling and editing both happen on other screens — refresh on return.
+  useEffect(() => navigation.addListener('focus', load), [navigation, load]);
+
+  const workoutActions = useWorkoutActions(navigation, load);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -172,6 +177,11 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={MC.violetLight} />
           }
         >
+          {/* Insights / Recovery / History live up here rather than buried in
+              a chip row at the foot of the page — they're the surfaces that
+              give the training itself meaning. */}
+          <MdbSecondaryNav navigation={navigation} showNutrition={false} />
+
           {/* ── Scheduled workout(s), or the inviting empty state ────────── */}
           {/* View/schedule only — logging itself lives on Home now. */}
           {workouts.length > 0 ? (
@@ -183,6 +193,7 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
                   readOnly
                   readOnlyReason={selectedDay?.isToday ? null : perms.reason}
                   onViewCompleted={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: w.id })}
+                  {...workoutActions(w)}
                 />
               ))}
               {perms.canSchedule && (
@@ -250,7 +261,6 @@ export default function MdbFreestyleCalendarScreen({ navigation }) {
             </View>
           )}
 
-          <MdbSecondaryNav navigation={navigation} showNutrition={false} />
           <BrandFooter note="Freestyle Studio Access" />
           <View style={{ height: MS.bottomRoom }} />
         </ScrollView>

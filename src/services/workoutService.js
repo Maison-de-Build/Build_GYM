@@ -221,6 +221,14 @@ export const deleteSelfAssigned = async (workoutLogId) => {
   return data;
 };
 
+// Replace the exercise list of a workout the member added themselves. Editing
+// one that came from a gym template forks a private copy server-side first —
+// the trainer's template is never touched.
+export const updateSelfAssignedExercises = async (workoutLogId, exercises) => {
+  const { data } = await api.put(`/workout/self-assigned/${workoutLogId}/exercises`, { exercises });
+  return data.data;
+};
+
 // ── Muscle recovery (A.7) + wellness survey (A.5) ────────────────────────────
 export const fetchMuscleRecovery = async () => {
   const { data } = await api.get('/member/muscle-recovery');

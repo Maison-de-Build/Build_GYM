@@ -56,13 +56,20 @@ export function formatDistance(meters) {
 }
 
 // Target line, e.g. "4 × 8 @ 60 kg" · "4 × 8" · "3 × 02:00" · "5 × 2 km".
+//
+// Reps and weight are no longer asked for when a member schedules their own
+// workout — they pick what they lift set by set instead — so a null rep
+// target is now normal, not missing data. Those render as plain "3 sets"
+// rather than "3 × —", which read like something had failed to load.
 export function formatTarget(ex) {
   const type = (ex && ex.measurementType) || 'weight_reps';
   const sets = ex && (ex.targetSets != null ? ex.targetSets : ex.sets);
-  const prefix = sets != null && sets !== '' ? `${sets} × ` : '';
+  const hasSets = sets != null && sets !== '';
+  const prefix = hasSets ? `${sets} × ` : '';
+  const setsOnly = hasSets ? `${sets} set${Number(sets) === 1 ? '' : 's'}` : '—';
   switch (type) {
     case 'reps':
-      return `${prefix}${ex?.targetReps ?? '—'}`;
+      return ex?.targetReps == null ? setsOnly : `${prefix}${ex.targetReps}`;
     case 'time':
       return `${prefix}${secondsToMmss(ex?.targetTimeSeconds)}`;
     case 'distance':
@@ -70,9 +77,9 @@ export function formatTarget(ex) {
     case 'weight_reps':
     default: {
       const w = ex?.targetWeight;
-      const reps = ex?.targetReps ?? '—';
       const suffix = w != null ? ` @ ${w} kg` : '';
-      return `${prefix}${reps}${suffix}`;
+      if (ex?.targetReps == null) return `${setsOnly}${suffix}`;
+      return `${prefix}${ex.targetReps}${suffix}`;
     }
   }
 }
