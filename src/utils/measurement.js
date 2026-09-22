@@ -12,14 +12,15 @@ export const MEASUREMENT_LABELS = {
 };
 
 // Which per-set inputs to render for a given measurement type (Sets/Rest handled
-// by the caller). Returns an array of field keys.
+// by the caller). Returns an array of field keys, in the order they appear on
+// screen — the pack's session table is SET · REPS · KG · STATUS.
 export function inputFieldsFor(type) {
   switch (type) {
     case 'reps': return ['reps'];
     case 'time': return ['time'];
     case 'distance': return ['distance'];
     case 'weight_reps':
-    default: return ['weight', 'reps'];
+    default: return ['reps', 'weight'];
   }
 }
 
