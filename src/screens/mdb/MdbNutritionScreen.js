@@ -209,7 +209,7 @@ export default function MdbNutritionScreen({ navigation }) {
                     {meal.foods.map((f, i) => (
                       <View key={f.id} style={[s.foodRow, i > 0 && s.foodDivider]}>
                         <Text style={s.foodName} numberOfLines={1}>
-                          {f.name}{f.quantity ? ` — ${trimNum(f.quantity)}g` : ''}
+                          {f.name}{f.quantity ? ` — ${portion(f)}` : ''}
                         </Text>
                         <Text style={s.foodMacros}>{macroLine(f)}</Text>
                       </View>
@@ -284,6 +284,18 @@ function MacroBar({ label, value, pct, color, gradient }) {
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 const fmtG = (v) => (v != null ? `${Math.round(v)}g` : '—');
 const trimNum = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : String(n));
+
+/**
+ * How much of this food the plan prescribes.
+ *
+ * The quantity used to be rendered here with a hardcoded "g" while the trainer
+ * app rendered the same number as a serving multiplier — so a coach entering
+ * "2 servings" showed the member "2g", and a plain 1 read as "Banana — 1g".
+ * `unit` comes from the plan now; anything without it predates the column and
+ * is a serving count.
+ */
+const portion = (f) =>
+  (f.unit === 'g' ? `${trimNum(f.quantity)} g` : `${trimNum(f.quantity)} serving${Number(f.quantity) === 1 ? '' : 's'}`);
 
 const macroLine = (f) => [
   f.proteinG != null ? `${Math.round(f.proteinG)}g P` : null,
