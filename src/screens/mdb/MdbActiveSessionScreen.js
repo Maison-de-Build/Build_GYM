@@ -144,7 +144,11 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
     if (!current) return;
     const last = currentSets[currentSets.length - 1];
     setReps(str(last?.actualReps ?? current.targetReps));
-    setWeight(str(last?.actualWeight ?? current.targetWeight));
+    // A zero target must not seed the box with "0.00": it is not a weight, and
+    // the set would be refused for exactly that on submit. Leave it empty so
+    // the member types what they actually lifted.
+    const seedWeight = last?.actualWeight ?? current.targetWeight;
+    setWeight(Number(seedWeight) > 0 ? str(seedWeight) : '');
     const secs = last?.actualTimeSeconds ?? current.targetTimeSeconds;
     setTimeText(secs != null ? secondsToMmss(secs) : '');
     const metres = last?.actualDistance ?? current.targetDistance;
