@@ -676,9 +676,14 @@ const INPUT_CELL = {
   reps: { keyboard: 'number-pad', placeholder: (ex) => str(ex.targetReps) },
   // Bodyweight prompts with a dash rather than an empty box, so leaving it
   // blank reads as a deliberate "no added load" rather than an oversight.
+  // A zero target is shown as nothing at all: "0.00" sitting in the box looks
+  // like a prefilled value the member can accept, and it is the one number
+  // this field will not take.
   weight: {
     keyboard: 'decimal-pad',
-    placeholder: (ex) => (ex.equipmentType === 'bodyweight' ? '—' : str(ex.targetWeight)),
+    placeholder: (ex) => (ex.equipmentType === 'bodyweight'
+      ? '—'
+      : (Number(ex.targetWeight) > 0 ? str(ex.targetWeight) : '')),
   },
   time: { keyboard: 'numbers-and-punctuation', placeholder: () => 'mm:ss' },
   distance: { keyboard: 'decimal-pad', placeholder: () => 'km' },
