@@ -186,12 +186,17 @@ export function sequenceOf(instance) {
  * wording for a bodyweight exercise with no prescribed load.
  */
 export function targetLine(ex) {
+  // A zero target is not a prescription — it is the absence of one, and
+  // "3 sets @ 0 kg" reads as an instruction to lift nothing. Older rows and
+  // carry-forward can both produce it, so treat 0 exactly like a missing
+  // weight: bodyweight exercises say so, everything else just omits the load.
+  const hasWeight = ex?.targetWeight != null && Number(ex.targetWeight) > 0;
   // Snapshot weights come back as numerics ("40.00"), which the pack never
   // shows — its targets read "@ 22 kg", not "@ 22.00 kg". Trim before
   // formatting so a whole number loses its decimals and 22.5 keeps them.
-  const base = formatTarget(ex?.targetWeight != null ? { ...ex, targetWeight: trimWeight(ex.targetWeight) } : ex);
+  const base = formatTarget(hasWeight ? { ...ex, targetWeight: trimWeight(ex.targetWeight) } : { ...ex, targetWeight: null });
   const type = ex?.measurementType || 'weight_reps';
-  if (type === 'weight_reps' && ex?.targetWeight == null) {
+  if (type === 'weight_reps' && !hasWeight) {
     if (ex?.equipmentType === 'bodyweight' || ex?.equipment === 'bodyweight') return `${base} @ Bodyweight`;
     if (ex?.weightSource === 'uncalibrated') return `${base} @ Weight TBD`;
   }

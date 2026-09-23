@@ -616,3 +616,24 @@ describe('formatTarget with no rep/weight target', () => {
     expect(formatTarget({ measurementType: 'distance', sets: 1, targetDistance: 2000 })).toBe('1 × 2 km');
   });
 });
+
+describe('targetLine with a zero weight', () => {
+  // "3 sets @ 0 kg" reads as an instruction to lift nothing. A zero target is
+  // the absence of a prescription, not a prescription of zero.
+  it('omits the load rather than printing 0 kg', () => {
+    expect(targetLine({ measurementType: 'weight_reps', sets: 3, targetWeight: 0 })).toBe('3 sets');
+    expect(targetLine({ measurementType: 'weight_reps', sets: 3, targetWeight: '0.00' })).toBe('3 sets');
+  });
+
+  it('still says Bodyweight when that is what a zero means', () => {
+    expect(targetLine({
+      measurementType: 'weight_reps', sets: 3, targetWeight: 0, equipmentType: 'bodyweight',
+    })).toBe('3 sets @ Bodyweight');
+  });
+
+  it('leaves a real weight alone, trailing zeros trimmed', () => {
+    expect(targetLine({ measurementType: 'weight_reps', sets: 3, targetWeight: '2.50' })).toBe('3 sets @ 2.5 kg');
+    expect(targetLine({ measurementType: 'weight_reps', sets: 4, targetReps: 8, targetWeight: '60.00' }))
+      .toBe('4 × 8 @ 60 kg');
+  });
+});

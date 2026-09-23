@@ -157,6 +157,24 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
   // the instant the active exercise changes so that can't happen.
   useEffect(() => { setPlateFor(null); }, [activeIndex]);
 
+  /**
+   * The next exercise still owing sets, searching forward from `from` and
+   * wrapping — a member who jumped back to an earlier exercise should still be
+   * carried forward to whatever is genuinely left, not dumped at the end.
+   * Returns -1 when the whole workout is done.
+   */
+  const nextUnfinishedIndex = useCallback((from, sets) => {
+    const owing = (ex) => {
+      const logged = (sets[ex.id] || []).length;
+      return !ex.targetSets || logged < ex.targetSets;
+    };
+    for (let i = 1; i <= exercises.length; i += 1) {
+      const idx = (from + i) % exercises.length;
+      if (owing(exercises[idx])) return idx;
+    }
+    return -1;
+  }, [exercises]);
+
   /* ── Log one set ───────────────────────────────────────────────────────── */
   const logCurrentSet = async () => {
     if (!current || !log?.id) return;
@@ -175,6 +193,15 @@ export default function MdbActiveSessionScreen({ route, navigation }) {
       [current.id]: [...(prev[current.id] || []), { setNumber, setType, ...values, pending: true }],
     }));
     setRest({ remaining: current.restSeconds || 90, total: current.restSeconds || 90 });
+
+    // That set finished this exercise — move on rather than parking on a card
+    // that has nothing left to log. The optimistic row is already in, so the
+    // advance is computed against the post-write state, not the stale one.
+    if (current.targetSets && setNumber >= current.targetSets) {
+      const after = { ...setsByExercise, [current.id]: [...currentSets, { setNumber }] };
+      const nextIdx = nextUnfinishedIndex(activeIndex, after);
+      if (nextIdx >= 0) setActiveIndex(nextIdx);
+    }
 
     try {
       const res = await logSet(log.id, {
@@ -476,7 +503,11 @@ function ActiveExerciseCard({
       </View>
 
       <View style={s.activeSubRow}>
-        <Text style={s.activeTarget}>Target: {targetLine(exercise)}</Text>
+        <Text style={s.activeTarget}>
+          {sets.length > 0 && type === 'weight_reps'
+            ? `Logged: ${loggedWeightLine(sets)}`
+            : `Target: ${targetLine(exercise)}`}
+        </Text>
         {isBarbell && (
           <TouchableOpacity style={s.plateLink} onPress={onPlateCalc} activeOpacity={0.7}>
             <Text style={s.plateLinkText}>Plate calc</Text>
@@ -509,7 +540,10 @@ function ActiveExerciseCard({
           </View>
         ))}
 
-        {/* Current set row */}
+        {/* Current set row — gone once the target is met. Leaving a row the
+            member cannot submit reads as "one more to go" while the hint says
+            the opposite. */}
+        {!capped && (
         <View style={s.tableRowCurrent}>
           <View style={[s.colSet, s.currentIndexCell]}>
             <Animated.View style={{ opacity: pulse }}>
@@ -548,6 +582,7 @@ function ActiveExerciseCard({
             </TouchableOpacity>
           </View>
         </View>
+        )}
       </View>
 
       {/* ── Action chips ───────────────────────────────────────────────── */}
@@ -706,6 +741,36 @@ const uniqueWeights = (sets) => {
   if (!ws.length) return 'Bodyweight';
   return `${[...new Set(ws)].join(', ')} kg`;
 };
+
+/**
+ * What the member actually lifted, grouped — "3 x 2.5 kg" when every set
+ * matched, "2 x 2.5 kg · 1 x 5 kg" when they did not.
+ *
+ * The active card used to show only the prescription, so a card reading
+ * "Target: 3 sets @ 0 kg" sat above a table of real 2.5 kg sets. Once
+ * anything is logged, what happened is the more useful thing to show.
+ */
+const loggedWeightLine = (sets) => {
+  const groups = [];
+  for (const st of sets) {
+    const w = st.actualWeight == null ? null : Number(st.actualWeight);
+    const last = groups[groups.length - 1];
+    if (last && last.w === w) last.n += 1;
+    else groups.push({ w, n: 1 });
+  }
+  // Same weight throughout collapses to one term regardless of order.
+  const distinct = [...new Set(groups.map((g) => g.w))];
+  if (distinct.length === 1) {
+    const w = distinct[0];
+    return `${sets.length} × ${w == null || w === 0 ? 'Bodyweight' : `${trimKg(w)} kg`}`;
+  }
+  return groups
+    .map((g) => `${g.n} × ${g.w == null || g.w === 0 ? 'Bodyweight' : `${trimKg(g.w)} kg`}`)
+    .join(' · ');
+};
+
+/** 2.50 -> "2.5", 5.00 -> "5" — the pack never shows trailing zeros. */
+const trimKg = (n) => String(Number(n));
 
 /** What a finished exercise reads as once collapsed, per measurement type. */
 const loggedSummary = (exercise, sets) => {
