@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, Image, RefreshControl, AppState,
@@ -145,13 +145,20 @@ export default function HomeScreen({ navigation }) {
   const guideConfig = useGuideStore((s) => s.config);
   const guideLoaded = useGuideStore((s) => s.loaded);
   const dismissCard = useGuideStore((s) => s.dismissCard);
-  const { isRunning: guideRunning } = useGuide();
+  const { isRunning: guideRunning, remeasureActive } = useGuide();
   const launchGuide = useGuideLauncher();
 
   // App.js asks for notification permission on launch, and a forced-update
   // modal can be up too. Starting the tour underneath either would dim a screen
   // the member cannot see. Tracking foreground state means the tour starts when
   // whatever was covering Home goes away, rather than being missed entirely.
+  // Handed to every GuideTarget below so a spotlight on a card under the fold
+  // scrolls it up before measuring instead of drawing half off the screen.
+  // The offset is tracked here because scrollTo wants an absolute content
+  // position, and the target only knows where it sits on the window.
+  const scrollRef = useRef(null);
+  const scrollOffsetRef = useRef(0);
+
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => setAppActive(st === 'active'));
@@ -243,6 +250,14 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <ScrollView
+        ref={scrollRef}
+        onScroll={(e) => {
+          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+          // Keeps the cutout pinned to its target through the whole scroll,
+          // whether the guide started it or the member did.
+          remeasureActive();
+        }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -304,10 +319,11 @@ export default function HomeScreen({ navigation }) {
             followed by the week strip and the KPI grid, so it sits as close to
             the top as it can without displacing them — and immediately above
             the workout card the first guide is about. */}
-        <GuideTarget id={T.HOME_GET_STARTED}>
+        <GuideTarget id={T.HOME_GET_STARTED} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
           <GetStartedCard
             state={guideState}
             config={guideConfig}
+            style={styles.noGap}
             onDismiss={dismissCard}
             onStartGuide={launchGuide}
           />
@@ -316,7 +332,7 @@ export default function HomeScreen({ navigation }) {
         {/* ── TODAY'S WORKOUT ───────────────────────── */}
         {/* The one place workout logging starts from — Training's own screens
             are browse/schedule only now. */}
-        <GuideTarget id={T.HOME_TODAY_WORKOUT} style={styles.sectionBlock}>
+        <GuideTarget id={T.HOME_TODAY_WORKOUT} style={styles.sectionBlock} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
         <View>
           <Text style={styles.eyebrow}>TODAY'S WORKOUT</Text>
           {todayInstances.length === 1 ? (
@@ -379,9 +395,9 @@ export default function HomeScreen({ navigation }) {
         </GuideTarget>
 
         {/* ── CALORIES BURNED ────────────────────────── */}
-        <GuideTarget id={T.HOME_CALORIES}>
+        <GuideTarget id={T.HOME_CALORIES} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
         <TouchableOpacity
-          style={styles.calCard}
+          style={[styles.calCard, styles.noGap]}
           activeOpacity={0.9}
           onPress={() => navigation.navigate('MdbHealthMetrics', { metric: 'calories' })}
         >
@@ -424,9 +440,9 @@ export default function HomeScreen({ navigation }) {
         </GuideTarget>
 
         {/* ── BUILD COINS CARD ─────────────────────── */}
-        <GuideTarget id={T.HOME_COINS}>
+        <GuideTarget id={T.HOME_COINS} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
         <TouchableOpacity
-          style={styles.coinsCard}
+          style={[styles.coinsCard, styles.noGap]}
           activeOpacity={0.9}
           onPress={() => navigation.push('BuildCoinTransactions')}
         >
@@ -701,6 +717,10 @@ const styles = StyleSheet.create({
 
   // Today's workout
   sectionBlock: { marginBottom: 16 },
+  // The gap a guide target carries on behalf of the card inside it, so the
+  // highlight measures the card and not the card plus its margin.
+  guideTargetGap: { marginBottom: 16 },
+  noGap: { marginBottom: 0 },
   multiCard: { padding: 16, gap: 6 },
   multiCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   multiCardTitle: { flex: 1, fontFamily: MdbFont.semibold, fontSize: 16, color: MC.text, letterSpacing: -0.2 },

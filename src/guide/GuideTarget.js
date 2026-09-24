@@ -9,7 +9,7 @@
  * shows up as the 5-second fallback rather than a wrong highlight.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { View, Platform, StatusBar } from 'react-native';
+import { View, Platform, StatusBar, Dimensions } from 'react-native';
 
 import { useGuide } from './GuideProvider';
 
@@ -21,37 +21,99 @@ import { useGuide } from './GuideProvider';
 const androidStatusBarOffset = () =>
   (Platform.OS === 'android' && StatusBar.currentHeight) ? StatusBar.currentHeight : 0;
 
-export default function GuideTarget({ id, children, style, enabled = true }) {
-  const { registerTarget, unregisterTarget, step, measureTick } = useGuide();
+export default function GuideTarget({ id, children, style, enabled = true, scrollRef, scrollOffsetRef }) {
+  const { registerTarget, unregisterTarget, registerMeasurer, step, measureTick } = useGuide();
   const ref = useRef(null);
-  // Avoids a measure → register → re-render → measure loop.
+  // One measurement in flight at a time, but a request that arrives while one is
+  // running is remembered rather than dropped. Scroll fires far faster than
+  // measureInWindow answers, so dropping meant the LAST frame of a scroll — the
+  // one that matters — was routinely lost, leaving the cutout at the position
+  // the target had partway through the animation.
   const pending = useRef(false);
+  const queued = useRef(false);
 
   const measure = useCallback(() => {
-    if (!ref.current || pending.current) return;
+    if (!ref.current) return;
+    if (pending.current) { queued.current = true; return; }
     pending.current = true;
     ref.current.measureInWindow((x, y, width, height) => {
       pending.current = false;
       if (width > 0 && height > 0) {
         registerTarget(id, { x, y: y - androidStatusBarOffset(), width, height });
       }
+      if (queued.current) {
+        queued.current = false;
+        measure();
+      }
     });
   }, [id, registerTarget]);
 
+  /**
+   * Bring the target into view before measuring it.
+   *
+   * Home is longer than the screen, so its first spotlight target sits below
+   * the fold on a fresh install — the cutout gets measured correctly and then
+   * drawn half off the bottom. Scrolling first is the only way the highlight
+   * lands on something the member can actually see.
+   *
+   * Worked out from window coordinates plus the scroll offset rather than
+   * measureLayout. Under the new architecture measureLayout given a numeric
+   * node handle fails silently, so the scroll simply never happened — no error,
+   * no movement. Window coordinates behave the same on both architectures.
+   */
+  const scrollIntoView = useCallback(() => {
+    const scroller = scrollRef?.current;
+    if (!scroller || !ref.current) return false;
+
+    return new Promise((resolve) => {
+      ref.current.measureInWindow((_x, y, _w, height) => {
+        const winH = Dimensions.get('window').height;
+        const top = y - androidStatusBarOffset();
+        const bottom = top + height;
+        // Room kept below the target for the tooltip, and above it for the
+        // header the guide never covers.
+        const SAFE_BOTTOM = 260;
+        const SAFE_TOP = 120;
+        const offset = scrollOffsetRef?.current ?? 0;
+
+        let delta = 0;
+        if (bottom > winH - SAFE_BOTTOM) delta = bottom - (winH - SAFE_BOTTOM);
+        else if (top < SAFE_TOP) delta = top - SAFE_TOP;
+
+        // A target already comfortably in view is left alone: scrolling it
+        // anyway would shift the page under a member who can already see it.
+        if (Math.abs(delta) < 8) { resolve(false); return; }
+
+        scroller.scrollTo({ y: Math.max(0, offset + delta), animated: true });
+        resolve(true);
+      });
+    });
+  }, [scrollRef, scrollOffsetRef]);
+
   useEffect(() => {
     if (!enabled) return undefined;
-    return () => unregisterTarget(id);
-  }, [id, enabled, unregisterTarget]);
+    registerMeasurer(id, measure);
+    return () => { registerMeasurer(id, null); unregisterTarget(id); };
+  }, [id, enabled, unregisterTarget, registerMeasurer, measure]);
 
   // Re-measure when this target becomes the active one. A card that scrolled,
   // or a sheet that opened over it, has moved since its last measurement.
   useEffect(() => {
     if (!enabled || step?.target !== id) return undefined;
+    let timers = [];
+    // Measure once up front so a target already in view highlights immediately,
+    // then again after the scroll settles — measuring mid-scroll would pin the
+    // cutout to wherever the card was passing through.
     measure();
-    // One deferred pass catches a layout that settles a frame late.
-    const t = setTimeout(measure, 120);
-    return () => clearTimeout(t);
-  }, [enabled, step?.target, id, measure, measureTick === 0]);
+    timers.push(setTimeout(measure, 120));
+    Promise.resolve(scrollIntoView()).then((scrolled) => {
+      if (scrolled) {
+        timers.push(setTimeout(measure, 350));
+        timers.push(setTimeout(measure, 700));
+      }
+    });
+    return () => timers.forEach(clearTimeout);
+  }, [enabled, step?.target, id, measure, scrollIntoView]);
 
   if (!enabled) return children;
 

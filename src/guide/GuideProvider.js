@@ -34,6 +34,15 @@ export function GuideProvider({ children }) {
   const markGuide = useGuideStore((s) => s.markGuide);
   const setWelcomeTour = useGuideStore((s) => s.setWelcomeTour);
 
+  // Each target parks its own measure fn here, so a screen that scrolls can ask
+  // the active one to re-measure without knowing which target that is.
+  const measurersRef = useRef(new Map());
+
+  const registerMeasurer = useCallback((id, fn) => {
+    if (fn) measurersRef.current.set(id, fn);
+    else measurersRef.current.delete(id);
+  }, []);
+
   const registerTarget = useCallback((id, rect) => {
     const prev = targetsRef.current.get(id);
     if (prev && sameRect(prev, rect)) return;
@@ -132,6 +141,23 @@ export function GuideProvider({ children }) {
   }, [stop]);
 
   const step = session ? session.steps[session.index] : null;
+  // Read inside remeasureActive, which must not be rebuilt on every step or the
+  // scroll handler it is wired into would be re-subscribed constantly.
+  const stepRef = useRef(step);
+  stepRef.current = step;
+
+  /**
+   * Re-measure whatever the current step points at.
+   *
+   * Called on every scroll frame by screens that scroll. Timers alone were not
+   * enough: a scroll animation finishing later than the timer left the cutout
+   * drawn at the target's old position, which is worse than no highlight —
+   * it points confidently at the wrong thing.
+   */
+  const remeasureActive = useCallback(() => {
+    const target = stepRef.current?.target;
+    if (target) measurersRef.current.get(target)?.();
+  }, []);
 
   const value = useMemo(() => ({
     session,
@@ -143,12 +169,15 @@ export function GuideProvider({ children }) {
     measureTick,
     registerTarget,
     unregisterTarget,
+    registerMeasurer,
+    remeasureActive,
     start,
     next,
     goToIndex,
     finish,
     exit,
-  }), [session, step, measureTick, registerTarget, unregisterTarget, start, next, goToIndex, finish, exit]);
+  }), [session, step, measureTick, registerTarget, unregisterTarget, registerMeasurer,
+    remeasureActive, start, next, goToIndex, finish, exit]);
 
   return <GuideContext.Provider value={value}>{children}</GuideContext.Provider>;
 }
