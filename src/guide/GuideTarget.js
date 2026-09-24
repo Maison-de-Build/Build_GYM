@@ -9,17 +9,9 @@
  * shows up as the 5-second fallback rather than a wrong highlight.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { View, Platform, StatusBar, Dimensions } from 'react-native';
+import { View, Dimensions } from 'react-native';
 
 import { useGuide } from './GuideProvider';
-
-/**
- * measureInWindow reports from the top of the window. On Android with a
- * translucent status bar that is above the drawn content, so every rectangle
- * comes back shifted down by the status-bar height unless we take it off.
- */
-const androidStatusBarOffset = () =>
-  (Platform.OS === 'android' && StatusBar.currentHeight) ? StatusBar.currentHeight : 0;
 
 export default function GuideTarget({ id, children, style, enabled = true, scrollRef, scrollOffsetRef }) {
   const { registerTarget, unregisterTarget, registerMeasurer, step, measureTick } = useGuide();
@@ -38,9 +30,12 @@ export default function GuideTarget({ id, children, style, enabled = true, scrol
     pending.current = true;
     ref.current.measureInWindow((x, y, width, height) => {
       pending.current = false;
-      if (width > 0 && height > 0) {
-        registerTarget(id, { x, y: y - androidStatusBarOffset(), width, height });
-      }
+      // No status-bar correction. The overlay is a root-level absoluteFill, so
+      // it already shares measureInWindow's coordinate space; subtracting the
+      // status-bar height drew every cutout 24dp high, which on Home reached up
+      // over the row above the target. Proven on device: the calories card
+      // measures y=509.3 and the hole was being drawn at 485.3.
+      if (width > 0 && height > 0) registerTarget(id, { x, y, width, height });
       if (queued.current) {
         queued.current = false;
         measure();
@@ -68,7 +63,7 @@ export default function GuideTarget({ id, children, style, enabled = true, scrol
     return new Promise((resolve) => {
       ref.current.measureInWindow((_x, y, _w, height) => {
         const winH = Dimensions.get('window').height;
-        const top = y - androidStatusBarOffset();
+        const top = y;
         const bottom = top + height;
         // Room kept below the target for the tooltip, and above it for the
         // header the guide never covers.
