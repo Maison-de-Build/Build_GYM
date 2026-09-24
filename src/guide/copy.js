@@ -1,0 +1,170 @@
+/**
+ * copy.js — every word the guides say, in one file.
+ *
+ * The spec freezes guide copy ("don't reword it or add lines; if a screen needs
+ * a line that isn't here, ask first"), so it all lives here rather than being
+ * scattered through components: one file to review, one place a change lands.
+ *
+ * Lines marked NEEDS SIGN-OFF are not from the spec. Each one is here because
+ * the spec's own line describes something the build can't do — see the note
+ * above it. They are proposals, not decisions.
+ */
+
+/* ── Part A: the welcome tour ───────────────────────────────────────────── */
+
+export const TOUR = {
+  // NEEDS SIGN-OFF. The spec reads "Pick a template, build your own or add
+  // single exercises." Members cannot build a template — the feature does not
+  // exist for anyone — so that clause promises a screen they will never find.
+  todayWorkoutFreestyle: {
+    title: "Today's workout",
+    body: 'Pick a template or add single exercises. Today’s session lives here.',
+  },
+
+  // NEEDS SIGN-OFF. A coached member picks nothing at all: self-assign is
+  // refused at the API and Home gives them no add button, so the line above
+  // would describe a thing they cannot do.
+  todayWorkoutCoached: {
+    title: "Today's workout",
+    body: 'Your coach’s session for today lives here.',
+  },
+
+  // Spec, the devices-off variant. Devices are dropped for v1, so this is the
+  // only version.
+  calories: {
+    title: 'Calories burned',
+    body: 'Calories from the sessions you log.',
+  },
+
+  // Spec, unchanged.
+  coins: {
+    title: 'Build Coins',
+    body: 'Your credit at the facility. You’ll use it to book activities and sessions.',
+  },
+
+  // NEEDS SIGN-OFF. Replaces the spec's "My bookings" step, whose target does
+  // not exist on Home — My Bookings is reached from Profile and from the
+  // Activities header, and the booking guide points at it there instead.
+  checkIn: {
+    title: 'Check in',
+    body: 'Scan here when you arrive at the facility.',
+  },
+
+  // Spec, unchanged.
+  startHere: {
+    title: 'Start here',
+    body: 'Short guides to get you going. Take them whenever you’re ready.',
+  },
+
+  // Spec, unchanged.
+  skipToast: 'You can replay this from Profile.',
+};
+
+/* ── Part B: the Get started card ───────────────────────────────────────── */
+
+export const CARD = {
+  title: 'Get started',
+  // Spec: "0 of 3 done", "of 2" when there's no coach row.
+  progress: (done, total) => `${done} of ${total} done`,
+  allDone: 'You’re set.',
+
+  rows: {
+    first_workout: {
+      title: 'Your first workout',
+      // Spec, for a member who plans their own.
+      sub: 'Plan it, log it, see it.',
+      // NEEDS SIGN-OFF. A coached member never plans, so "Plan it" describes a
+      // step they will not see.
+      subCoached: 'Log it, see it.',
+    },
+    booking_practice: {
+      title: 'Book an activity',
+      // Spec, unchanged.
+      sub: 'A practice run. Nothing’s booked, no coins used.',
+    },
+    coach_chat: {
+      title: 'Message your coach',
+      // Spec, unchanged.
+      sub: 'Your coach is a tap away.',
+    },
+  },
+
+  skippedLabel: 'Skipped',
+
+  // Spec, unchanged.
+  hideSheet: {
+    title: 'Hide these guides?',
+    body: 'You can run any of them later from Profile.',
+    confirm: 'Hide',
+    cancel: 'Keep',
+  },
+};
+
+/* ── Part C: replay, in Profile ─────────────────────────────────────────── */
+
+export const REPLAY = {
+  title: 'Replay guide',
+  subtitle: 'Run any of these again whenever you like.',
+
+  rows: {
+    welcome_tour: {
+      title: 'Welcome tour',
+      // Spec, unchanged.
+      sub: 'A quick look around Home.',
+    },
+    first_workout: {
+      title: 'Your first workout',
+      // NEEDS SIGN-OFF, and this one matters most. The spec's line is "Guides a
+      // real workout. What you log is saved." and it says that line must stay
+      // exactly as written so members know it creates real data. It no longer
+      // does — the guide runs on demo screens and saves nothing — so keeping
+      // the line would be the one outright false statement in the feature.
+      sub: 'A practice run. Nothing’s logged.',
+    },
+    booking_practice: {
+      title: 'Book an activity',
+      // Spec, unchanged.
+      sub: 'A practice run. Nothing’s booked.',
+    },
+    coach_chat: {
+      title: 'Message your coach',
+      // NEEDS SIGN-OFF. The spec's "Opens your chat with your coach." described
+      // a guide that ended on the real chat screen; this one ends on a demo of
+      // it, and opens nothing.
+      sub: 'A look at where your coach chat lives.',
+    },
+  },
+
+  // Test accounts only.
+  reset: {
+    title: 'Reset guides',
+    sub: 'Put every guide back to unseen.',
+    confirmTitle: 'Reset all guides?',
+    confirmBody: 'The welcome tour will run again the next time Home loads.',
+    confirm: 'Reset',
+    cancel: 'Cancel',
+    done: 'Guides reset.',
+    failed: 'Could not reset guides.',
+  },
+};
+
+/* ── Shared step furniture ──────────────────────────────────────────────── */
+
+export const ACTIONS = {
+  next: 'Next',
+  done: 'Done',
+  gotIt: 'Got it',
+  skip: 'Skip',
+  exitGuide: 'Exit guide',
+  exitPractice: 'Exit practice',
+
+  // NEEDS SIGN-OFF. The hand-off card at the end of each guide, behind
+  // GUIDE_DO_IT_FOR_REAL. Without it a member finishes having only watched,
+  // with their real Home still empty.
+  doItForReal: {
+    title: 'Your turn',
+    body: 'That was a practice run. Ready to do it for real?',
+    primary: 'Do it for real',
+    secondary: 'Not now',
+  },
+};

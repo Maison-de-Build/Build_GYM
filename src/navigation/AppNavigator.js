@@ -55,6 +55,7 @@ import ConsentPreferencesScreen from '../screens/profile/ConsentPreferencesScree
 import SupportScreen from '../screens/profile/SupportScreen';
 import AchievementsScreen from '../screens/profile/AchievementsScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
+import GuideReplayScreen from '../screens/profile/GuideReplayScreen';
 
 // Workout screens
 import {
@@ -321,6 +322,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Support" component={SupportScreen} />
         <Stack.Screen name="Achievements" component={AchievementsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="GuideReplay" component={GuideReplayScreen} />
 
         {/* Detail screens */}
         <Stack.Screen name="TrainerDetail" component={TrainerDetailScreen} />

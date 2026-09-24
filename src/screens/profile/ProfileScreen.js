@@ -12,6 +12,8 @@ import GradientIcon from '../../components/GradientIcon';
 import { fetchMyMembership } from '../../services/membershipService';
 import { useAuthStore } from '../../store/authStore';
 import { uploadProfilePhoto, removeProfilePhoto } from '../../services/profileService';
+import { useGuideStore } from '../../guide';
+import { eligibleGuides } from '../../guide/guideRules';
 
 // Profile menu — Stitch "Elite Refined" order, each row's accent tint + route.
 const MENU = [
@@ -21,6 +23,7 @@ const MENU = [
   { id: 'orders',    label: 'Order History',      sub: 'Past transactions & invoices', icon: 'receipt-long',   nav: 'OrderHistory', color: '#2DD4BF', bg: 'rgba(13,148,136,0.22)' },
   { id: 'activity',  label: 'Activity Dashboard', sub: 'Club usage & stats',           icon: 'insights',       nav: 'Activity',     color: '#FBBF24', bg: 'rgba(245,158,11,0.16)' },
   { id: 'progress',  label: 'Progress Tracker',   sub: 'Body weight & photos',         icon: 'trending-up',    nav: 'ProgressTracker', color: '#34D399', bg: 'rgba(16,185,129,0.16)' },
+  { id: 'replay',    label: 'Replay guide',       sub: 'Run an onboarding guide again', icon: 'replay',        nav: 'GuideReplay',  color: '#A78BFA', bg: 'rgba(127,41,130,0.20)' },
   { id: 'settings',  label: 'Settings',           sub: 'App & privacy preferences',    icon: 'settings',       nav: 'Settings',     color: '#C7C4CC', bg: 'rgba(255,255,255,0.08)' },
   { id: 'support',   label: 'Support',            sub: '24/7 concierge assistance',    icon: 'support-agent',  nav: 'Support',      color: '#60A5FA', bg: 'rgba(96,165,250,0.14)' },
   { id: 'complaint', label: 'Register Complaint', sub: 'Feedback & issue reporting',   icon: 'report',         nav: 'MyComplaints', color: '#F87171', bg: 'rgba(248,113,113,0.14)' },
@@ -86,11 +89,15 @@ export default function ProfileScreen({ navigation }) {
       setQuery('');
     });
   };
+  const guideConfig = useGuideStore((s) => s.config);
+  const hasGuides = guideConfig.welcome || eligibleGuides(guideConfig).length > 0;
+
   const filteredMenu = useMemo(() => {
+    const base = hasGuides ? MENU : MENU.filter((i) => i.id !== 'replay');
     const q = query.trim().toLowerCase();
-    if (!q) return MENU;
-    return MENU.filter((i) => `${i.label} ${i.sub}`.toLowerCase().includes(q));
-  }, [query]);
+    if (!q) return base;
+    return base.filter((i) => `${i.label} ${i.sub}`.toLowerCase().includes(q));
+  }, [query, hasGuides]);
 
   // ── Membership card light-sweep shimmer ────────────────────────────────────
   // Everything is derived from the static screen width — no onLayout/state

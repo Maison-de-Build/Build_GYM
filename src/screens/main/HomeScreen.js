@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, Image, RefreshControl,
+  StatusBar, Image, RefreshControl, AppState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -25,6 +25,10 @@ import MdbIcon from '../../components/mdb/MdbIcon';
 import { MC, MF as MdbFont } from '../../theme/mdbKit';
 import useMemberMode from '../../hooks/useMemberMode';
 import useWorkoutActions from '../../hooks/useWorkoutActions';
+import GetStartedCard from '../../components/guide/GetStartedCard';
+import { GuideTarget, useGuide, useGuideStore, shouldAutoStartWelcome } from '../../guide';
+import { useGuideLauncher } from '../../guide/useGuideLauncher';
+import { T } from '../../guide/targets';
 
 // Mockup accent palette (kept as literals — multi-colour KPI / quick-access tiles).
 const AMBER = '#F59E0B';
@@ -89,6 +93,9 @@ export default function HomeScreen({ navigation }) {
   const [upcomingTrial, setUpcomingTrial] = useState(null);
   const [calToday, setCalToday] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  // The welcome tour waits for this: spotlighting a card that is still a
+  // skeleton puts the highlight where the card used to be.
+  const [contentLoaded, setContentLoaded] = useState(false);
   const { isPt } = useMemberMode();
 
   // Live wallet balance (fetch + socket).
@@ -123,6 +130,7 @@ export default function HomeScreen({ navigation }) {
         .then((res) => setUpcomingTrial((res.data?.data || [])[0] || null))
         .catch(() => setUpcomingTrial(null)),
     ]);
+    setContentLoaded(true);
   }, []);
 
   const workoutActions = useWorkoutActions(navigation, loadContent);
@@ -131,6 +139,34 @@ export default function HomeScreen({ navigation }) {
   // Scheduling, editing and removing all happen on other screens, so today's
   // card would otherwise go stale the moment the member comes back.
   useEffect(() => navigation.addListener('focus', loadContent), [navigation, loadContent]);
+
+  /* ── Onboarding guides ───────────────────────────────────────────────── */
+  const guideState  = useGuideStore((s) => s.state);
+  const guideConfig = useGuideStore((s) => s.config);
+  const guideLoaded = useGuideStore((s) => s.loaded);
+  const dismissCard = useGuideStore((s) => s.dismissCard);
+  const { isRunning: guideRunning } = useGuide();
+  const launchGuide = useGuideLauncher();
+
+  // App.js asks for notification permission on launch, and a forced-update
+  // modal can be up too. Starting the tour underneath either would dim a screen
+  // the member cannot see. Tracking foreground state means the tour starts when
+  // whatever was covering Home goes away, rather than being missed entirely.
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => setAppActive(st === 'active'));
+    return () => sub.remove();
+  }, []);
+
+  // First Home render where the tour has never run. The 600ms is the spec's:
+  // it lets the last card settle after its data lands, so the first spotlight
+  // measures a card that has stopped moving.
+  useEffect(() => {
+    if (!contentLoaded || !guideLoaded || guideRunning || !appActive) return undefined;
+    if (!shouldAutoStartWelcome(guideState, guideConfig)) return undefined;
+    const t = setTimeout(() => launchGuide('welcome_tour'), 600);
+    return () => clearTimeout(t);
+  }, [contentLoaded, guideLoaded, guideRunning, appActive, guideState, guideConfig, launchGuide]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -263,10 +299,25 @@ export default function HomeScreen({ navigation }) {
           <KpiCard label="POINTS" value={pointsValue} icon="diamond" color={SILVER} />
         </View>
 
+        {/* ── GET STARTED (onboarding guides) ───────── */}
+        {/* The spec puts this directly under the header; Home's header is
+            followed by the week strip and the KPI grid, so it sits as close to
+            the top as it can without displacing them — and immediately above
+            the workout card the first guide is about. */}
+        <GuideTarget id={T.HOME_GET_STARTED}>
+          <GetStartedCard
+            state={guideState}
+            config={guideConfig}
+            onDismiss={dismissCard}
+            onStartGuide={launchGuide}
+          />
+        </GuideTarget>
+
         {/* ── TODAY'S WORKOUT ───────────────────────── */}
         {/* The one place workout logging starts from — Training's own screens
             are browse/schedule only now. */}
-        <View style={styles.sectionBlock}>
+        <GuideTarget id={T.HOME_TODAY_WORKOUT} style={styles.sectionBlock}>
+        <View>
           <Text style={styles.eyebrow}>TODAY'S WORKOUT</Text>
           {todayInstances.length === 1 ? (
             <View style={{ gap: 12, marginTop: 8 }}>
@@ -325,8 +376,10 @@ export default function HomeScreen({ navigation }) {
             </View>
           )}
         </View>
+        </GuideTarget>
 
         {/* ── CALORIES BURNED ────────────────────────── */}
+        <GuideTarget id={T.HOME_CALORIES}>
         <TouchableOpacity
           style={styles.calCard}
           activeOpacity={0.9}
@@ -368,8 +421,10 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
         </TouchableOpacity>
+        </GuideTarget>
 
         {/* ── BUILD COINS CARD ─────────────────────── */}
+        <GuideTarget id={T.HOME_COINS}>
         <TouchableOpacity
           style={styles.coinsCard}
           activeOpacity={0.9}
@@ -389,6 +444,7 @@ export default function HomeScreen({ navigation }) {
             <MaterialIcons name="chevron-right" size={18} color={COLORS.textMuted} />
           </View>
         </TouchableOpacity>
+        </GuideTarget>
 
         {/* ── MY COACH ─────────────────────────────── */}
         <MyCoachCard navigation={navigation} />
@@ -481,6 +537,7 @@ export default function HomeScreen({ navigation }) {
 
       {/* ── STICKY CHECK-IN FAB ──────────────────── */}
       <View style={styles.fabWrap} pointerEvents="box-none">
+        <GuideTarget id={T.HOME_CHECK_IN}>
         <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Access')}>
           <LinearGradient
             colors={[COLORS.primary, '#923a93']}
@@ -492,6 +549,7 @@ export default function HomeScreen({ navigation }) {
           </LinearGradient>
         </TouchableOpacity>
         <Text style={styles.fabLabel}>CHECK IN</Text>
+        </GuideTarget>
       </View>
     </View>
   );
