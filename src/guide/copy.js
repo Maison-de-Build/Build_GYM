@@ -5,15 +5,18 @@
  * a line that isn't here, ask first"), so it all lives here rather than being
  * scattered through components: one file to review, one place a change lands.
  *
- * Lines marked NEEDS SIGN-OFF are not from the spec. Each one is here because
- * the spec's own line describes something the build can't do — see the note
- * above it. They are proposals, not decisions.
+ * Lines marked DEMO WORDING are not from the spec. Each one is here because the
+ * spec's own line describes something this build cannot do — a template builder
+ * nobody has, a My Bookings entry that isn't on Home, a workout guide that saves
+ * real data. The note above each says which. They are deliberate choices for the
+ * demo version and the obvious place to start when the feature catches up with
+ * the spec.
  */
 
 /* ── Part A: the welcome tour ───────────────────────────────────────────── */
 
 export const TOUR = {
-  // NEEDS SIGN-OFF. The spec reads "Pick a template, build your own or add
+  // DEMO WORDING. The spec reads "Pick a template, build your own or add
   // single exercises." Members cannot build a template — the feature does not
   // exist for anyone — so that clause promises a screen they will never find.
   todayWorkoutFreestyle: {
@@ -21,7 +24,7 @@ export const TOUR = {
     body: 'Pick a template or add single exercises. Today’s session lives here.',
   },
 
-  // NEEDS SIGN-OFF. A coached member picks nothing at all: self-assign is
+  // DEMO WORDING. A coached member picks nothing at all: self-assign is
   // refused at the API and Home gives them no add button, so the line above
   // would describe a thing they cannot do.
   todayWorkoutCoached: {
@@ -42,7 +45,7 @@ export const TOUR = {
     body: 'Your credit at the facility. You’ll use it to book activities and sessions.',
   },
 
-  // NEEDS SIGN-OFF. Replaces the spec's "My bookings" step, whose target does
+  // DEMO WORDING. Replaces the spec's "My bookings" step, whose target does
   // not exist on Home — My Bookings is reached from Profile and from the
   // Activities header, and the booking guide points at it there instead.
   checkIn: {
@@ -73,7 +76,7 @@ export const CARD = {
       title: 'Your first workout',
       // Spec, for a member who plans their own.
       sub: 'Plan it, log it, see it.',
-      // NEEDS SIGN-OFF. A coached member never plans, so "Plan it" describes a
+      // DEMO WORDING. A coached member never plans, so "Plan it" describes a
       // step they will not see.
       subCoached: 'Log it, see it.',
     },
@@ -114,7 +117,7 @@ export const REPLAY = {
     },
     first_workout: {
       title: 'Your first workout',
-      // NEEDS SIGN-OFF, and this one matters most. The spec's line is "Guides a
+      // DEMO WORDING, and this one matters most. The spec's line is "Guides a
       // real workout. What you log is saved." and it says that line must stay
       // exactly as written so members know it creates real data. It no longer
       // does — the guide runs on demo screens and saves nothing — so keeping
@@ -128,7 +131,7 @@ export const REPLAY = {
     },
     coach_chat: {
       title: 'Message your coach',
-      // NEEDS SIGN-OFF. The spec's "Opens your chat with your coach." described
+      // DEMO WORDING. The spec's "Opens your chat with your coach." described
       // a guide that ended on the real chat screen; this one ends on a demo of
       // it, and opens nothing.
       sub: 'A look at where your coach chat lives.',
