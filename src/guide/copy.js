@@ -158,13 +158,25 @@ export const ACTIONS = {
   exitGuide: 'Exit guide',
   exitPractice: 'Exit practice',
 
-  // NEEDS SIGN-OFF. The hand-off card at the end of each guide, behind
-  // GUIDE_DO_IT_FOR_REAL. Without it a member finishes having only watched,
-  // with their real Home still empty.
+  // NOT BUILT. The hand-off step at the end of each guide, behind
+  // GUIDE_DO_IT_FOR_REAL — which now defaults off. Kept here so that turning it
+  // on later is a step plus a server flag rather than a fresh copy decision.
   doItForReal: {
     title: 'Your turn',
     body: 'That was a practice run. Ready to do it for real?',
     primary: 'Do it for real',
     secondary: 'Not now',
   },
+};
+
+/* ── The practice banner, pinned to every demo screen ───────────────────── */
+
+// The spec gives the booking line and requires it be impossible to miss:
+// solid #783DEC behind #F1F2F3 text, under the status bar, on every screen of
+// the run. The other two are NEEDS SIGN-OFF — the booking wording talks about
+// coins and bookings, which would be wrong above a workout or a chat.
+export const DEMO_BANNER = {
+  booking: 'Practice run. Nothing\u2019s booked, no coins used.',
+  workout: 'Practice run. Nothing\u2019s logged.',
+  chat: 'Practice run. No message is sent.',
 };

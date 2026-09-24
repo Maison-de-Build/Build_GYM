@@ -57,6 +57,20 @@ import AchievementsScreen from '../screens/profile/AchievementsScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import GuideReplayScreen from '../screens/profile/GuideReplayScreen';
 
+// Onboarding guide demo screens. Hardcoded copies fed by bundled mock data:
+// they import no API client, no data hook and no payment SDK, so a guide
+// physically cannot book, charge, log or send anything. Registered on the same
+// stack, and the guide engine resets back to where it started when one ends.
+import GuideDemoWorkoutChoice from '../guide/demo/GuideDemoWorkoutChoice';
+import GuideDemoPlayer from '../guide/demo/GuideDemoPlayer';
+import GuideDemoSummary from '../guide/demo/GuideDemoSummary';
+import GuideDemoActivities from '../guide/demo/GuideDemoActivities';
+import GuideDemoActivityDetail from '../guide/demo/GuideDemoActivityDetail';
+import GuideDemoBookingSuccess from '../guide/demo/GuideDemoBookingSuccess';
+import GuideDemoMyBookings from '../guide/demo/GuideDemoMyBookings';
+import GuideDemoTransactions from '../guide/demo/GuideDemoTransactions';
+import GuideDemoChat from '../guide/demo/GuideDemoChat';
+
 // Workout screens
 import {
   WorkoutHomeScreen,
@@ -323,6 +337,20 @@ export default function AppNavigator() {
         <Stack.Screen name="Achievements" component={AchievementsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="GuideReplay" component={GuideReplayScreen} />
+
+        {/* Guide demo screens. gestureEnabled off throughout: a swipe back out
+            of the middle of a run would leave the overlay pointing at a target
+            on a screen that is no longer there. Leaving is the guide's exit
+            control, which unwinds the whole stack. */}
+        <Stack.Screen name="GuideDemoWorkoutChoice" component={GuideDemoWorkoutChoice} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoPlayer" component={GuideDemoPlayer} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoSummary" component={GuideDemoSummary} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoActivities" component={GuideDemoActivities} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoActivityDetail" component={GuideDemoActivityDetail} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoBookingSuccess" component={GuideDemoBookingSuccess} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoMyBookings" component={GuideDemoMyBookings} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoTransactions" component={GuideDemoTransactions} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="GuideDemoChat" component={GuideDemoChat} options={{ gestureEnabled: false }} />
 
         {/* Detail screens */}
         <Stack.Screen name="TrainerDetail" component={TrainerDetailScreen} />

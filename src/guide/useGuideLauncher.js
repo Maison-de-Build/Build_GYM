@@ -10,18 +10,25 @@ import { useCallback } from 'react';
 import { useGuide } from './GuideProvider';
 import { useGuideStore } from './guideStore';
 import { welcomeTourSteps } from './steps/welcomeTour';
+import { firstWorkoutSteps } from './steps/firstWorkout';
+import { bookingPracticeSteps } from './steps/bookingPractice';
+import { coachChatSteps } from './steps/coachChat';
+import { useDemoBooking, seedDemoBooking } from './demo/demoBookingState';
 
 /**
  * Step lists, keyed by guide. Each takes the member's config so the one or two
  * places a guide differs by member type are decided here rather than inside a
  * screen.
- *
- * Guides 2 to 4 land in the next stage; until then their rows are hidden by the
- * server switches, so there is nothing to launch.
  */
 const BUILDERS = {
-  welcome_tour: (config) => welcomeTourSteps({ hasCoach: config.hasCoach }),
+  welcome_tour:     (config) => welcomeTourSteps({ hasCoach: config.hasCoach }),
+  first_workout:    (config) => firstWorkoutSteps({ hasCoach: config.hasCoach }),
+  booking_practice: () => bookingPracticeSteps(),
+  coach_chat:       () => coachChatSteps(),
 };
+
+/** Guides that keep in-memory demo state needing a clean slate each run. */
+const RESETS_DEMO_BOOKING = new Set(['booking_practice']);
 
 export function useGuideLauncher() {
   const { start, isRunning } = useGuide();
@@ -38,7 +45,19 @@ export function useGuideLauncher() {
     const steps = build(config);
     if (!steps?.length) return false;
 
-    start(guideKey, steps, options);
+    // A replay must look exactly like a first run, so the practice booking
+    // starts from a full balance with nothing booked every time.
+    if (RESETS_DEMO_BOOKING.has(guideKey)) seedDemoBooking();
+
+    start(guideKey, steps, {
+      ...options,
+      onDone: (status) => {
+        // Practice data is memory-only and goes the moment the guide ends,
+        // however it ended — finished, skipped or backed out of.
+        if (RESETS_DEMO_BOOKING.has(guideKey)) useDemoBooking.getState().reset();
+        options.onDone?.(status);
+      },
+    });
     return true;
   }, [start, isRunning, config]);
 }

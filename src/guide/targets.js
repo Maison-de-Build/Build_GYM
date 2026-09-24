@@ -14,4 +14,32 @@ export const T = {
   HOME_COINS:         'home.coins',
   HOME_CHECK_IN:      'home.checkIn',
   HOME_GET_STARTED:   'home.getStarted',
+
+  // ── Demo: first workout ────────────────────────────────────────────────
+  DW_TEMPLATE_TAB:   'demoWorkout.templateTab',
+  DW_TEMPLATE_CARD:  'demoWorkout.templateCard',
+  DW_EXERCISE_TAB:   'demoWorkout.exerciseTab',
+  DW_SCHEDULE:       'demoWorkout.schedule',
+  DW_START:          'demoWorkout.start',
+  DW_SET_FIELDS:     'demoWorkout.setFields',
+  DW_LOG_SET:        'demoWorkout.logSet',
+  DW_REST:           'demoWorkout.rest',
+  DW_FINISH:         'demoWorkout.finish',
+  DW_SUMMARY_STATS:  'demoWorkout.summaryStats',
+  DW_SUMMARY_SHARE:  'demoWorkout.summaryShare',
+
+  // ── Demo: book an activity ─────────────────────────────────────────────
+  DB_LIST:           'demoBooking.list',
+  DB_CARD:           'demoBooking.card',
+  DB_PRICE:          'demoBooking.price',
+  DB_DATE:           'demoBooking.date',
+  DB_SLOT:           'demoBooking.slot',
+  DB_BOOK:           'demoBooking.book',
+  DB_VIEW_BOOKINGS:  'demoBooking.viewBookings',
+  DB_BOOKING_CARD:   'demoBooking.bookingCard',
+  DB_TXN_ROW:        'demoBooking.txnRow',
+
+  // ── Demo: message your coach ───────────────────────────────────────────
+  DC_THREAD:         'demoChat.thread',
+  DC_INPUT:          'demoChat.input',
 };
