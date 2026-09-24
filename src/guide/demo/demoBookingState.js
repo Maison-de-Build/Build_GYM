@@ -40,12 +40,18 @@ export const useDemoBooking = create((set, get) => ({
   reset: () => set(initial()),
 }));
 
-/** Defaults the member would otherwise have to pick before the guide can move. */
+/**
+ * Everything the run needs, chosen up front.
+ *
+ * A member who taps Next rather than the highlighted card never picks anything,
+ * and the detail screen would open with nothing on it. Seeding means every
+ * screen has something to show from the start; tapping a card still changes it.
+ */
 export function seedDemoBooking() {
   const dates = demoDates();
   useDemoBooking.setState({
     ...initial(),
-    activity: null,
+    activity: DEMO_ACTIVITIES[0],
     dateIso: dates[0].iso,
     slotId: DEMO_SLOTS[0].id,
   });

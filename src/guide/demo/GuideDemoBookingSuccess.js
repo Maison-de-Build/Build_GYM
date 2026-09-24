@@ -5,7 +5,7 @@
  * bookings screen — My Bookings is not on Home, so pointing at it here and in
  * the Activities header is pointing at where it actually lives.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -17,7 +17,12 @@ import { DEMO_BANNER } from '../copy';
 import { useDemoBooking } from './demoBookingState';
 
 export default function GuideDemoBookingSuccess() {
-  const { activity, balance } = useDemoBooking();
+  const { activity, balance, booked, confirm } = useDemoBooking();
+
+  // Reaching this screen means the booking happened, whether the member tapped
+  // the highlighted Book button or moved on with Next. Without this the success
+  // screen would claim coins came off a balance that never moved.
+  useEffect(() => { if (!booked) confirm(); }, [booked, confirm]);
 
   return (
     <DemoScaffold label={DEMO_BANNER.booking}>

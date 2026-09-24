@@ -21,6 +21,7 @@ import MdbIcon from '../../components/mdb/MdbIcon';
 import { GradientRing } from '../../components/mdb/MdbPrimitives';
 import DemoScaffold from './DemoScaffold';
 import GuideTarget from '../GuideTarget';
+import { useGuide } from '../GuideProvider';
 import { T } from '../targets';
 import { DEMO_BANNER } from '../copy';
 import { DEMO_TEMPLATE } from './demoData';
@@ -34,6 +35,19 @@ export default function GuideDemoPlayer() {
   const [logged, setLogged] = useState(false);
   const [rest, setRest] = useState(null);
   const pulse = useRef(new Animated.Value(1)).current;
+  const { step } = useGuide();
+
+  // The rest step points at a timer that only exists once a set is marked done.
+  // A member who taps Next instead of the tick would leave the guide pointing at
+  // something that was never rendered, so the screen catches up with the step
+  // rather than waiting to be driven. These screens exist only for the guide, so
+  // following it is the honest arrangement.
+  useEffect(() => {
+    if (step?.target === T.DW_REST && !logged) {
+      setLogged(true);
+      setRest(REST_TOTAL);
+    }
+  }, [step?.target, logged]);
 
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
