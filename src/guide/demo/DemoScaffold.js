@@ -12,20 +12,16 @@
  * anything because the code that would do it isn't on these screens.
  */
 import React from 'react';
-import { View, Text, StyleSheet, StatusBar } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, StyleSheet, StatusBar } from 'react-native';
 
-import { MC, MF } from '../../theme/mdbKit';
+import { MC } from '../../theme/mdbKit';
+import PracticeBanner from './PracticeBanner';
 
 export default function DemoScaffold({ label, children, style }) {
-  const insets = useSafeAreaInsets();
-
   return (
     <View style={[s.screen, style]}>
       <StatusBar barStyle="light-content" backgroundColor={MC.violet} />
-      <View style={[s.banner, { paddingTop: insets.top + 8 }]}>
-        <Text style={s.bannerText} numberOfLines={2}>{label}</Text>
-      </View>
+      <PracticeBanner label={label} />
       <View style={s.body}>{children}</View>
     </View>
   );
@@ -33,14 +29,5 @@ export default function DemoScaffold({ label, children, style }) {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: MC.bg },
-  banner: {
-    backgroundColor: MC.violet,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  bannerText: {
-    fontFamily: MF.semibold, fontSize: 12, color: MC.text,
-    letterSpacing: 0.2, textAlign: 'center',
-  },
   body: { flex: 1 },
 });

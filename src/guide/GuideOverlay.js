@@ -25,6 +25,16 @@ const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 import { MC, MG, MF, MR } from '../theme/mdbKit';
 import { useGuide, TARGET_TIMEOUT_MS } from './GuideProvider';
+import { DEMO_BANNER } from './copy';
+import PracticeBanner from './demo/PracticeBanner';
+
+// Which guides run on demo screens, and what their banner says. The welcome
+// tour runs on the real Home and has none.
+const DEMO_BANNERS = {
+  first_workout: DEMO_BANNER.workout,
+  booking_practice: DEMO_BANNER.booking,
+  coach_chat: DEMO_BANNER.chat,
+};
 
 const DIM_COLOR = '#08060B';
 const DIM_OPACITY = 0.85;
@@ -34,10 +44,13 @@ const RING_WIDTH = 1.5;
 const TOOLTIP_MAX_W = 320;
 const TOOLTIP_GAP = 12;
 const FADE_MS = 200;
+// Height of the practice banner's text row below the safe-area inset: 8 top
+// padding + ~16 line + 8 bottom.
+const BANNER_H = 34;
 const SLIDE_MS = 250;
 
 export default function GuideOverlay() {
-  const { step, stepNumber, stepCount, targets, measureTick, next, exit, isRunning } = useGuide();
+  const { session, step, stepNumber, stepCount, targets, measureTick, next, exit, isRunning } = useGuide();
   const insets = useSafeAreaInsets();
   const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -125,6 +138,7 @@ export default function GuideOverlay() {
   if (!ready && !showFallback) return null;
 
   const exitLabel = step.exitLabel || 'Skip';
+  const demoBanner = DEMO_BANNERS[session?.guideKey];
   const placement = pickPlacement({ cutout, tooltipH, SH, insets, centred: centred || showFallback });
 
   return (
@@ -187,9 +201,20 @@ export default function GuideOverlay() {
         <Blocker style={StyleSheet.absoluteFillObject} />
       )}
 
+      {/* ── Practice banner, redrawn above the dim. ─────────────────────── */}
+      {/* The demo screen draws this too, but underneath an 85% dim it is the
+          one thing on screen that must never be hard to read. */}
+      {!!demoBanner && (
+        <View style={s.bannerSlot} pointerEvents="none">
+          <PracticeBanner label={demoBanner} />
+        </View>
+      )}
+
       {/* ── Exit control, top-right under the safe area. ─────────────────── */}
+      {/* Clear of the practice banner when there is one, so the way out is
+          never tucked behind it. */}
       <TouchableOpacity
-        style={[s.exit, { top: insets.top + 8 }]}
+        style={[s.exit, { top: insets.top + 8 + (demoBanner ? BANNER_H : 0) }]}
         onPress={exit}
         hitSlop={8}
         accessibilityRole="button"
@@ -281,6 +306,7 @@ function pickPlacement({ cutout, tooltipH, SH, insets, centred }) {
 }
 
 const s = StyleSheet.create({
+  bannerSlot: { position: 'absolute', top: 0, left: 0, right: 0 },
   exit: {
     position: 'absolute', right: 12,
     minWidth: 44, height: 44,

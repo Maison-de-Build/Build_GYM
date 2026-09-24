@@ -9,9 +9,18 @@
  * shows up as the 5-second fallback rather than a wrong highlight.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { View, Dimensions } from 'react-native';
+import { View, Dimensions, Platform, StatusBar } from 'react-native';
 
 import { useGuide } from './GuideProvider';
+
+/**
+ * measureInWindow reports relative to the app window, which on Android starts
+ * below the status bar (dumpsys: app=1344x2920 inside cur=1344x2992). The
+ * overlay is an absoluteFill spanning the whole screen, so every rectangle has
+ * to be moved down by that gap to line up with what the member sees.
+ */
+const statusBarOffset = () =>
+  (Platform.OS === 'android' && StatusBar.currentHeight) ? StatusBar.currentHeight : 0;
 
 export default function GuideTarget({ id, children, style, enabled = true, scrollRef, scrollOffsetRef }) {
   const { registerTarget, unregisterTarget, registerMeasurer, step, measureTick } = useGuide();
@@ -30,12 +39,9 @@ export default function GuideTarget({ id, children, style, enabled = true, scrol
     pending.current = true;
     ref.current.measureInWindow((x, y, width, height) => {
       pending.current = false;
-      // No status-bar correction. The overlay is a root-level absoluteFill, so
-      // it already shares measureInWindow's coordinate space; subtracting the
-      // status-bar height drew every cutout 24dp high, which on Home reached up
-      // over the row above the target. Proven on device: the calories card
-      // measures y=509.3 and the hole was being drawn at 485.3.
-      if (width > 0 && height > 0) registerTarget(id, { x, y, width, height });
+      if (width > 0 && height > 0) {
+        registerTarget(id, { x, y: y + statusBarOffset(), width, height });
+      }
       if (queued.current) {
         queued.current = false;
         measure();
@@ -63,7 +69,7 @@ export default function GuideTarget({ id, children, style, enabled = true, scrol
     return new Promise((resolve) => {
       ref.current.measureInWindow((_x, y, _w, height) => {
         const winH = Dimensions.get('window').height;
-        const top = y;
+        const top = y + statusBarOffset();
         const bottom = top + height;
         // Room kept below the target for the tooltip, and above it for the
         // header the guide never covers.
@@ -95,17 +101,17 @@ export default function GuideTarget({ id, children, style, enabled = true, scrol
   // or a sheet that opened over it, has moved since its last measurement.
   useEffect(() => {
     if (!enabled || step?.target !== id) return undefined;
-    let timers = [];
+    const timers = [];
     // Measure once up front so a target already in view highlights immediately,
-    // then again after the scroll settles — measuring mid-scroll would pin the
-    // cutout to wherever the card was passing through.
+    // then again as the screen settles. The later passes are not only for
+    // scrolling: a screen whose header resolves a frame late (the demo screens
+    // size their banner from the safe-area inset) shifts its content down after
+    // the first measurement, and nothing else would correct it — those screens
+    // have no scroll to drive a re-measure.
     measure();
-    timers.push(setTimeout(measure, 120));
+    [120, 350, 700].forEach((ms) => timers.push(setTimeout(measure, ms)));
     Promise.resolve(scrollIntoView()).then((scrolled) => {
-      if (scrolled) {
-        timers.push(setTimeout(measure, 350));
-        timers.push(setTimeout(measure, 700));
-      }
+      if (scrolled) timers.push(setTimeout(measure, 1000));
     });
     return () => timers.forEach(clearTimeout);
   }, [enabled, step?.target, id, measure, scrollIntoView]);

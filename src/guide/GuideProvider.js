@@ -95,49 +95,42 @@ export function GuideProvider({ children }) {
   }, []);
 
   const goToIndex = useCallback((nextIndex) => {
-    setSession((cur) => {
-      if (!cur) return cur;
-      if (nextIndex >= cur.steps.length) return cur; // finish() handles the end
-      const step = cur.steps[nextIndex];
-      // Changing screens invalidates every measurement taken on the old one.
-      if (step.screen && step.screen !== cur.steps[cur.index].screen) {
-        targetsRef.current.clear();
-        navigateTo(step.screen, step.params);
-      }
-      return { ...cur, index: nextIndex };
-    });
+    const cur = sessionRef.current;
+    if (!cur || nextIndex >= cur.steps.length) return; // finish() handles the end
+    const target = cur.steps[nextIndex];
+    if (target.screen && target.screen !== cur.steps[cur.index].screen) {
+      targetsRef.current.clear();
+      navigateTo(target.screen, target.params);
+    }
+    setSession({ ...cur, index: nextIndex });
   }, []);
 
   const finish = useCallback(() => {
-    setSession((cur) => {
-      if (cur) stop(cur.guideKey, 'completed', cur.onDone, cur.returnTo);
-      return cur;
-    });
+    const cur = sessionRef.current;
+    if (cur) stop(cur.guideKey, 'completed', cur.onDone, cur.returnTo);
   }, [stop]);
 
   const next = useCallback(() => {
-    setSession((cur) => {
-      if (!cur) return cur;
-      const nextIndex = cur.index + 1;
-      if (nextIndex >= cur.steps.length) {
-        stop(cur.guideKey, 'completed', cur.onDone, cur.returnTo);
-        return cur;
-      }
-      const step = cur.steps[nextIndex];
-      if (step.screen && step.screen !== cur.steps[cur.index].screen) {
-        targetsRef.current.clear();
-        navigateTo(step.screen, step.params);
-      }
-      return { ...cur, index: nextIndex };
-    });
+    const cur = sessionRef.current;
+    if (!cur) return;
+    const nextIndex = cur.index + 1;
+    if (nextIndex >= cur.steps.length) {
+      stop(cur.guideKey, 'completed', cur.onDone, cur.returnTo);
+      return;
+    }
+    const nextStep = cur.steps[nextIndex];
+    // Changing screens invalidates every measurement taken on the old one.
+    if (nextStep.screen && nextStep.screen !== cur.steps[cur.index].screen) {
+      targetsRef.current.clear();
+      navigateTo(nextStep.screen, nextStep.params);
+    }
+    setSession({ ...cur, index: nextIndex });
   }, [stop]);
 
   /** Skip / Exit guide. Ends the guidance only — it never undoes anything. */
   const exit = useCallback(() => {
-    setSession((cur) => {
-      if (cur) stop(cur.guideKey, 'skipped', cur.onDone, cur.returnTo);
-      return cur;
-    });
+    const cur = sessionRef.current;
+    if (cur) stop(cur.guideKey, 'skipped', cur.onDone, cur.returnTo);
   }, [stop]);
 
   const step = session ? session.steps[session.index] : null;
@@ -145,6 +138,14 @@ export function GuideProvider({ children }) {
   // scroll handler it is wired into would be re-subscribed constantly.
   const stepRef = useRef(step);
   stepRef.current = step;
+  // The controls below act on the live session through this rather than through
+  // a setSession updater. Ending a guide is a side effect, and a side effect
+  // inside an updater that returns its input unchanged is dropped: React bails
+  // out of the re-render and the nested setSession(null) never lands. That is
+  // exactly what made Skip look dead on device while Next worked, since Next
+  // happened to return a new object.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
   /**
    * Re-measure whatever the current step points at.
