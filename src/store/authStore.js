@@ -189,6 +189,12 @@ export const useAuthStore = create((set, get) => ({
     });
     // Drop the previous user's unread count so it can't leak into the next login.
     useAnnouncementStore.getState().clearUnread();
+    // Same for the onboarding guides: the next member on this handset must not
+    // inherit the last one's progress, or their welcome tour never runs.
+    // Lazily imported for the same store-cycle reason as the two below.
+    import('../guide/guideStore')
+      .then((m) => m.useGuideStore.getState().clear())
+      .catch(() => {});
     // Same for chat: drop the /chat socket (it stays authenticated as the outgoing
     // user until disconnected), clear the store and empty the on-device cache.
     // Lazily imported for the same store-cycle reason as notificationService above.
