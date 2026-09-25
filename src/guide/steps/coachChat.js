@@ -5,7 +5,8 @@
  * not exist otherwise. The guide never sends, drafts or pre-fills a message.
  */
 import { T } from '../targets';
-import { ACTIONS, ENTRY } from '../copy';
+import { ACTIONS, ENTRY, HINTS } from '../copy';
+import { pressHome } from './press';
 
 const CHAT = 'GuideDemoChat';
 
@@ -16,6 +17,7 @@ export function coachChatSteps() {
     // have one yet — the guide goes straight to the chat rather than stall.
     {
       id: 'C0', screen: 'MainTabs', target: T.HOME_COACH, optional: true,
+      ...pressHome(HINTS.tile),
       ...ENTRY.coach,
     },
     {

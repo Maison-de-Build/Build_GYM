@@ -1,13 +1,13 @@
 /**
  * Demo: the workout summary.
  *
- * The 2×2 stat grid and the share row, matching the real receipt. The share row
- * is shown but does nothing: the real one opens a card-capture screen and then
- * the OS share sheet, and a practice run must not put anything in front of the
- * member's contacts.
+ * The 2×2 stat grid and the share row, matching the real receipt. Pressing the
+ * share row ends the guide and shares nothing: the real one opens a
+ * card-capture screen and then the OS share sheet, and a practice run must not
+ * put anything in front of the member's contacts.
  */
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 
 import { MC, MF, MR, MS } from '../../theme/mdbKit';
 import DemoScaffold from './DemoScaffold';
@@ -15,8 +15,10 @@ import GuideTarget from '../GuideTarget';
 import { T } from '../targets';
 import { DEMO_BANNER } from '../copy';
 import { DEMO_SUMMARY } from './demoData';
+import { useGuide } from '../GuideProvider';
 
 export default function GuideDemoSummary() {
+  const { advance } = useGuide();
   return (
     <DemoScaffold label={DEMO_BANNER.workout}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -45,10 +47,15 @@ export default function GuideDemoSummary() {
         </GuideTarget>
 
         <GuideTarget id={T.DW_SUMMARY_SHARE}>
-          <View style={s.shareRow}>
+          {/* Pressing it finishes the guide. It never opens the share sheet. */}
+          <TouchableOpacity
+            style={s.shareRow}
+            onPress={() => advance(T.DW_SUMMARY_SHARE)}
+            activeOpacity={0.85}
+          >
             <Text style={s.shareText}>Share session card</Text>
             <Text style={s.shareArrow}>↗</Text>
-          </View>
+          </TouchableOpacity>
         </GuideTarget>
       </ScrollView>
     </DemoScaffold>

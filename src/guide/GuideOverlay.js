@@ -213,7 +213,10 @@ export default function GuideOverlay() {
             top: cutout.y, left: cutout.x + cutout.width, right: 0, height: cutout.height,
           }} />
           {/* Passive steps show the feature without opening it: the tap lands
-              here, advances, and never reaches the element underneath. */}
+              here, advances, and never reaches the element underneath. Live
+              steps (buttons on the practice screens) have no catcher, so the
+              press reaches the real control, which does its work and then
+              calls advance(). */}
           {step.mode === 'passive' && (
             <TouchableOpacity
               activeOpacity={1}
@@ -290,6 +293,16 @@ export default function GuideOverlay() {
                 <Text style={s.body}>{step.body}</Text>
               </ScrollView>
 
+              {/* A button step has no Next: the member presses the button.
+                  The hint takes the Next button's place so the way on is still
+                  spelled out. */}
+              {!step.primaryLabel && !step.secondaryLabel && !!step.hint && (
+                <View style={s.hintRow}>
+                  <View style={s.hintDot} />
+                  <Text style={s.hint}>{step.hint}</Text>
+                </View>
+              )}
+
               {(step.primaryLabel || step.secondaryLabel) && (
                 <View style={s.buttonRow}>
                   {!!step.secondaryLabel && (
@@ -359,6 +372,10 @@ const s = StyleSheet.create({
   },
   title: { fontFamily: MF.semibold, fontSize: 16, color: MC.text, marginBottom: 6 },
   body: { fontFamily: MF.regular, fontSize: 14, lineHeight: 20, color: MC.textSecondary },
+
+  hintRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  hintDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: MC.cyan },
+  hint: { flex: 1, fontFamily: MF.medium, fontSize: 13, color: MC.violetLight },
 
   buttonRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',

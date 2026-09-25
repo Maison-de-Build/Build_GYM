@@ -14,7 +14,8 @@
  * screen — because it is not on Home.
  */
 import { T } from '../targets';
-import { ACTIONS, ENTRY } from '../copy';
+import { ACTIONS, ENTRY, HINTS } from '../copy';
+import { pressHome, pressLive } from './press';
 
 const HOME = 'MainTabs';
 const LIST = 'GuideDemoActivities';
@@ -28,10 +29,12 @@ const STEPS = [
   // booking lives before being shown how it works.
   {
     id: 'K0', screen: HOME, target: T.HOME_ACTIVITIES, optional: true,
+    ...pressHome(HINTS.tile),
     ...ENTRY.booking,
   },
   {
     id: 'K1', screen: LIST, target: T.DB_CARD,
+    ...pressLive(HINTS.activity),
     title: 'Open an activity',
     body: 'Tap one to see the details.',
   },
@@ -42,21 +45,25 @@ const STEPS = [
   },
   {
     id: 'K3', screen: DETAIL, target: T.DB_DATE,
+    ...pressLive(HINTS.date),
     title: 'Pick a date',
     body: 'Choose a day that works.',
   },
   {
     id: 'K4', screen: DETAIL, target: T.DB_SLOT,
+    ...pressLive(HINTS.time),
     title: 'Pick a time',
     body: 'Choose a slot.',
   },
   {
     id: 'K5', screen: DETAIL, target: T.DB_BOOK,
+    ...pressLive(HINTS.button),
     title: 'Book it',
     body: 'This is a practice run, so nothing’s charged.',
   },
   {
     id: 'K6', screen: SUCCESS, target: T.DB_VIEW_BOOKINGS,
+    ...pressLive(HINTS.button),
     title: 'Booked',
     body: 'The coins came off your balance. Here’s where your booking lives.',
   },

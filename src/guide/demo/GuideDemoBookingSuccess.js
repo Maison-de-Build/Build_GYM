@@ -6,7 +6,7 @@
  * the Activities header is pointing at where it actually lives.
  */
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { COLORS, FONTS } from '../../theme';
@@ -15,13 +15,15 @@ import GuideTarget from '../GuideTarget';
 import { T } from '../targets';
 import { DEMO_BANNER } from '../copy';
 import { useDemoBooking } from './demoBookingState';
+import { useGuide } from '../GuideProvider';
 
 export default function GuideDemoBookingSuccess() {
   const { activity, balance, booked, confirm } = useDemoBooking();
+  const { advance } = useGuide();
 
-  // Reaching this screen means the booking happened, whether the member tapped
-  // the highlighted Book button or moved on with Next. Without this the success
-  // screen would claim coins came off a balance that never moved.
+  // Reaching this screen means the booking happened. Book Now confirms before
+  // the guide moves here; this is the backstop for any other way in, so the
+  // screen never claims coins came off a balance that never moved.
   useEffect(() => { if (!booked) confirm(); }, [booked, confirm]);
 
   return (
@@ -36,10 +38,16 @@ export default function GuideDemoBookingSuccess() {
         </Text>
         <Text style={s.balance}>Practice balance: ₿ {balance}</Text>
 
-        <GuideTarget id={T.DB_VIEW_BOOKINGS}>
-          <View style={s.btn}>
+        {/* The gap above the button lives on the wrapper, not the button, so the
+            highlight hugs the button instead of taking in the space above it. */}
+        <GuideTarget id={T.DB_VIEW_BOOKINGS} style={s.btnGap}>
+          <TouchableOpacity
+            style={s.btn}
+            onPress={() => advance(T.DB_VIEW_BOOKINGS)}
+            activeOpacity={0.85}
+          >
             <Text style={s.btnText}>VIEW MY BOOKINGS</Text>
-          </View>
+          </TouchableOpacity>
         </GuideTarget>
       </View>
     </DemoScaffold>
@@ -58,8 +66,9 @@ const s = StyleSheet.create({
     textAlign: 'center', lineHeight: 20,
   },
   balance: { fontFamily: FONTS.bodyBold, fontSize: 13, color: COLORS.primaryLight, marginTop: 4 },
+  btnGap: { marginTop: 24 },
   btn: {
-    marginTop: 24, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14,
+    paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14,
     borderWidth: 1, borderColor: COLORS.primaryLight,
   },
   btnText: { fontFamily: FONTS.bodyBold, fontSize: 13, color: COLORS.primaryLight, letterSpacing: 1.5 },

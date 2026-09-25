@@ -150,6 +150,20 @@ export function GuideProvider({ children }) {
 
   const goToIndex = useCallback((i) => moveTo(i), [moveTo]);
 
+  /**
+   * A control on a practice screen was pressed. Moves on only if the current
+   * step is the one pointing at that control, so the same button pressed again,
+   * or pressed when no guide runs, does nothing. This is how a "live" step —
+   * one with no Next button — advances: the screen does its own work (picks the
+   * date, books, marks the set) and then reports the press here.
+   */
+  const advance = useCallback((targetId) => {
+    const cur = sessionRef.current;
+    if (!cur || cur.steps[cur.index]?.target !== targetId) return false;
+    moveTo(cur.index + 1);
+    return true;
+  }, [moveTo]);
+
   const finish = useCallback(() => {
     const cur = sessionRef.current;
     if (cur) stop(cur, 'completed');
@@ -211,11 +225,12 @@ export function GuideProvider({ children }) {
     remeasureActive,
     start,
     next,
+    advance,
     goToIndex,
     finish,
     exit,
   }), [session, step, registerTarget, unregisterTarget, registerMeasurer,
-    remeasureActive, start, next, goToIndex, finish, exit]);
+    remeasureActive, start, next, advance, goToIndex, finish, exit]);
 
   const measureValue = useMemo(
     () => ({ targets: targetsRef.current, measureTick }),

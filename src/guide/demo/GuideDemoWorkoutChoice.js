@@ -18,10 +18,12 @@ import GuideTarget from '../GuideTarget';
 import { T } from '../targets';
 import { DEMO_BANNER } from '../copy';
 import { DEMO_TEMPLATE, DEMO_EXERCISES } from './demoData';
+import { useGuide } from '../GuideProvider';
 
 export default function GuideDemoWorkoutChoice() {
   const [tab, setTab] = useState('templates');
   const [picked, setPicked] = useState(false);
+  const { advance } = useGuide();
 
   return (
     <DemoScaffold label={DEMO_BANNER.workout}>
@@ -33,7 +35,7 @@ export default function GuideDemoWorkoutChoice() {
         <GuideTarget id={T.DW_TEMPLATE_TAB} style={s.segHalf}>
           <TouchableOpacity
             style={[s.segBtn, tab === 'templates' && s.segBtnOn]}
-            onPress={() => setTab('templates')}
+            onPress={() => { setTab('templates'); advance(T.DW_TEMPLATE_TAB); }}
             activeOpacity={0.85}
           >
             <Text style={[s.segText, tab === 'templates' && s.segTextOn]}>Templates</Text>
@@ -55,7 +57,7 @@ export default function GuideDemoWorkoutChoice() {
           <GuideTarget id={T.DW_TEMPLATE_CARD}>
             <TouchableOpacity
               style={s.card}
-              onPress={() => setPicked((p) => !p)}
+              onPress={() => { setPicked(true); advance(T.DW_TEMPLATE_CARD); }}
               activeOpacity={0.85}
             >
               <View style={[s.tick, picked && s.tickOn]}>
@@ -90,7 +92,7 @@ export default function GuideDemoWorkoutChoice() {
 
       <View style={s.commitBar}>
         <GuideTarget id={T.DW_SCHEDULE}>
-          <TouchableOpacity activeOpacity={0.9}>
+          <TouchableOpacity activeOpacity={0.9} onPress={() => advance(T.DW_SCHEDULE)}>
             <LinearGradient colors={MG.primary} start={MG.start} end={MG.end} style={s.cta}>
               <Text style={s.ctaText}>SCHEDULE 1 FOR TODAY</Text>
             </LinearGradient>

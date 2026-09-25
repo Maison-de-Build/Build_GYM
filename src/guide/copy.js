@@ -198,6 +198,23 @@ export const ACTIONS = {
   },
 };
 
+/* ── Press-to-continue hints ────────────────────────────────────────────── */
+
+// DEMO WORDING, all of them. A step that highlights a button has no Next: the
+// member presses the button itself, the way they will for real. This is the
+// line that takes the Next button's place, so nobody is left wondering how to
+// move on. Cards and read-only blocks keep Next and never show one of these.
+export const HINTS = {
+  button: 'Tap the highlighted button to continue.',
+  tile: 'Tap it to continue.',
+  activity: 'Tap the activity to continue.',
+  template: 'Tap the template to continue.',
+  date: 'Tap a date to continue.',
+  time: 'Tap a time to continue.',
+  logSet: 'Tap the tick to mark the set done.',
+  share: 'Tap Share to finish. Nothing is posted.',
+};
+
 /* ── The practice banner, pinned to every demo screen ───────────────────── */
 
 // The spec gives the booking line and requires it be impossible to miss:

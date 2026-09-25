@@ -25,7 +25,9 @@ describe('welcomeTourSteps', () => {
   it('offers Skip on every step and ends on Done', () => {
     const steps = welcomeTourSteps();
     for (const step of steps) expect(step.exitLabel).toBe(ACTIONS.skip);
-    expect(steps.slice(0, 4).map((s) => s.primaryLabel)).toEqual(Array(4).fill(ACTIONS.next));
+    // Check-in is a button: pressed, so it has no Next.
+    expect(steps.slice(0, 4).map((s) => s.primaryLabel))
+      .toEqual([ACTIONS.next, ACTIONS.next, ACTIONS.next, null]);
     expect(steps[4].primaryLabel).toBe(ACTIONS.done);
   });
 
@@ -79,9 +81,10 @@ describe('welcomeTourSteps without the Get started card', () => {
     expect(steps.map((s) => s.target)).not.toContain(T.HOME_GET_STARTED);
   });
 
-  it('still ends on Done', () => {
+  it('ends on the check-in press, with Next on the cards before it', () => {
     const steps = welcomeTourSteps({ showCard: false });
-    expect(steps[steps.length - 1].primaryLabel).toBe(ACTIONS.done);
+    expect(steps[steps.length - 1].primaryLabel).toBeNull();
+    expect(steps[steps.length - 1].hint?.length).toBeGreaterThan(0);
     expect(steps.slice(0, -1).every((s) => s.primaryLabel === ACTIONS.next)).toBe(true);
   });
 

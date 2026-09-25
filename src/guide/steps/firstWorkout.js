@@ -10,7 +10,8 @@
  * workout or touches the member's record.
  */
 import { T } from '../targets';
-import { ACTIONS, ENTRY } from '../copy';
+import { ACTIONS, ENTRY, HINTS } from '../copy';
+import { pressHome, pressLive } from './press';
 
 const CHOICE = 'GuideDemoWorkoutChoice';
 const PLAYER = 'GuideDemoPlayer';
@@ -20,16 +21,19 @@ const SUMMARY = 'GuideDemoSummary';
 const planningSteps = [
   {
     id: 'W1', screen: CHOICE, target: T.DW_TEMPLATE_TAB,
+    ...pressLive(HINTS.button),
     title: 'Two ways in',
     body: 'Use a ready-made template, or add exercises one at a time.',
   },
   {
     id: 'W2', screen: CHOICE, target: T.DW_TEMPLATE_CARD,
+    ...pressLive(HINTS.template),
     title: 'Pick a template',
     body: 'Exercises, sets and targets are all set for you. Tap to choose it.',
   },
   {
     id: 'W3', screen: CHOICE, target: T.DW_SCHEDULE,
+    ...pressLive(HINTS.button),
     title: 'Set it for today',
     body: 'It lands on your Home as today’s workout.',
   },
@@ -39,6 +43,7 @@ const planningSteps = [
 const loggingSteps = [
   {
     id: 'W4', screen: PLAYER, target: T.DW_SET_FIELDS,
+    ...pressLive(HINTS.logSet),
     title: 'Log your first set',
     body: 'Your targets are filled in. Change them to what you actually did, then mark the set done.',
   },
@@ -50,6 +55,7 @@ const loggingSteps = [
   },
   {
     id: 'W6', screen: PLAYER, target: T.DW_FINISH,
+    ...pressLive(HINTS.button),
     title: 'Finish up',
     body: 'Tap Finish when you’re done with every exercise.',
   },
@@ -62,7 +68,7 @@ const loggingSteps = [
     id: 'W8', screen: SUMMARY, target: T.DW_SUMMARY_SHARE,
     title: 'Share it',
     body: 'Post your session card anywhere you like.',
-    primaryLabel: ACTIONS.done,
+    ...pressLive(HINTS.share),
   },
 ];
 
@@ -77,6 +83,8 @@ const entryStep = (hasCoach) => ({
   screen: 'MainTabs',
   target: hasCoach ? T.HOME_TODAY_WORKOUT : T.HOME_ADD_WORKOUT,
   optional: true,
+  // Freestyle points at the add button; coached at the Today's workout card.
+  ...pressHome(hasCoach ? HINTS.tile : HINTS.button),
   ...(hasCoach ? ENTRY.firstWorkoutCoached : ENTRY.firstWorkoutFreestyle),
 });
 
@@ -85,9 +93,8 @@ export function firstWorkoutSteps({ hasCoach = false } = {}) {
     ? [entryStep(true), ...loggingSteps]
     : [entryStep(false), ...planningSteps, ...loggingSteps];
   return steps.map((step) => ({
-    // Passive: the member reads, taps, and moves on. The demo screens respond
-    // to the tap (a template ticks, a set is marked) but the guide decides when
-    // the screen changes, so a tap can never run ahead of the tooltip.
+    // Cards and read-only blocks are passive: read, tap Next. Buttons override
+    // this through pressLive / pressHome, so the member presses the button.
     mode: 'passive',
     advanceOn: 'tap',
     primaryLabel: ACTIONS.next,

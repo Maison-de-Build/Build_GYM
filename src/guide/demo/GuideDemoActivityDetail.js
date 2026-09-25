@@ -20,16 +20,18 @@ import { T } from '../targets';
 import { DEMO_BANNER } from '../copy';
 import { demoDates, DEMO_SLOTS } from './demoData';
 import { useDemoBooking } from './demoBookingState';
+import { useGuide } from '../GuideProvider';
 
 export default function GuideDemoActivityDetail() {
   const { activity, dateIso, slotId, balance, pickDate, pickSlot, confirm } = useDemoBooking();
   const dates = useMemo(() => demoDates(), []);
+  const { advance } = useGuide();
 
   if (!activity) return <DemoScaffold label={DEMO_BANNER.booking}><View /></DemoScaffold>;
 
-  // Deducts from the practice balance held in memory. The guide handles the
-  // move to the success screen.
-  const book = () => confirm();
+  // Deducts from the practice balance held in memory, then tells the guide the
+  // button was pressed; the guide handles the move to the success screen.
+  const book = () => { confirm(); advance(T.DB_BOOK); };
 
   return (
     <DemoScaffold label={DEMO_BANNER.booking}>
@@ -62,7 +64,7 @@ export default function GuideDemoActivityDetail() {
                 <TouchableOpacity
                   key={d.iso}
                   style={[s.dateChip, on && s.chipOn]}
-                  onPress={() => pickDate(d.iso)}
+                  onPress={() => { pickDate(d.iso); advance(T.DB_DATE); }}
                   activeOpacity={0.85}
                 >
                   <Text style={[s.dateDow, on && s.chipTextOn]}>{d.dow}</Text>
@@ -82,7 +84,7 @@ export default function GuideDemoActivityDetail() {
                 <TouchableOpacity
                   key={slot.id}
                   style={[s.slot, on && s.chipOn]}
-                  onPress={() => pickSlot(slot.id)}
+                  onPress={() => { pickSlot(slot.id); advance(T.DB_SLOT); }}
                   activeOpacity={0.85}
                 >
                   <Text style={[s.slotText, on && s.chipTextOn]}>{slot.label}</Text>

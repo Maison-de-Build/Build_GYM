@@ -12,7 +12,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Animated, Easing,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Animated, Easing, Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -35,13 +35,13 @@ export default function GuideDemoPlayer() {
   const [logged, setLogged] = useState(false);
   const [rest, setRest] = useState(null);
   const pulse = useRef(new Animated.Value(1)).current;
-  const { step } = useGuide();
+  const { step, advance } = useGuide();
 
   // The rest step points at a timer that only exists once a set is marked done.
-  // A member who taps Next instead of the tick would leave the guide pointing at
-  // something that was never rendered, so the screen catches up with the step
-  // rather than waiting to be driven. These screens exist only for the guide, so
-  // following it is the honest arrangement.
+  // The tick normally does that before the guide gets here; this is the
+  // backstop, so the rest step can never point at something that was never
+  // rendered. These screens exist only for the guide, so following it is the
+  // honest arrangement.
   useEffect(() => {
     if (step?.target === T.DW_REST && !logged) {
       setLogged(true);
@@ -67,10 +67,15 @@ export default function GuideDemoPlayer() {
     return () => clearTimeout(t);
   }, [rest]);
 
+  // The tick is the button on the set-logging step. The step highlights the
+  // whole row, so the member can change the numbers first; pressing the tick
+  // marks the set and moves the guide on to the rest timer.
   const logSet = () => {
     if (logged) return;
+    Keyboard.dismiss();
     setLogged(true);
     setRest(REST_TOTAL);
+    advance(T.DW_SET_FIELDS);
   };
 
   const mmss = (n) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
@@ -187,7 +192,7 @@ export default function GuideDemoPlayer() {
       <View style={s.bottomBar}>
         <Text style={s.progress}>{logged ? '0 of 3 done' : '0 of 3 done'}</Text>
         <GuideTarget id={T.DW_FINISH}>
-          <TouchableOpacity activeOpacity={0.9}>
+          <TouchableOpacity activeOpacity={0.9} onPress={() => advance(T.DW_FINISH)}>
             <LinearGradient colors={MG.primary} start={MG.start} end={MG.end} style={s.finishBtn}>
               <Text style={s.finishText}>FINISH WORKOUT</Text>
             </LinearGradient>

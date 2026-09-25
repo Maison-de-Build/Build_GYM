@@ -6,6 +6,8 @@ import { coachChatSteps } from '../steps/coachChat.js';
 import { welcomeTourSteps } from '../steps/welcomeTour.js';
 import { T } from '../targets.js';
 import { ACTIONS } from '../copy.js';
+import { isPressStep } from '../steps/press.js';
+import { isDemoRoute } from '../guideNav.js';
 
 const ALL = [
   ['welcome tour', () => welcomeTourSteps()],
@@ -40,22 +42,35 @@ describe.each(ALL)('%s', (_name, build) => {
     for (const s of steps) expect(known.has(s.target), `${s.id} → ${s.target}`).toBe(true);
   });
 
-  it('is passive throughout, so a tap never opens the feature underneath', () => {
-    for (const s of steps) {
-      expect(s.mode).toBe('passive');
-      expect(s.advanceOn).toBe('tap');
-    }
-  });
-
-  it('gives every step a way out and a way on', () => {
+  // A button is pressed; a card or read-only block is read past with Next.
+  it('gives every step either a Next-style button or a press hint, never both', () => {
     for (const s of steps) {
       expect(s.exitLabel?.length).toBeGreaterThan(0);
-      expect(s.primaryLabel?.length).toBeGreaterThan(0);
+      if (s.primaryLabel) expect(s.hint, s.id).toBeUndefined();
+      else expect(s.hint?.length, s.id).toBeGreaterThan(0);
     }
   });
 
-  it('ends on Done', () => {
-    expect(steps[steps.length - 1].primaryLabel).toBe(ACTIONS.done);
+  // On the real Home the overlay catches the press, or it would open the real
+  // screen instead of the practice one. On a practice screen the press has to
+  // reach the control, which does its own work and then calls advance().
+  it('lets a press through only on practice screens', () => {
+    for (const s of steps) {
+      if (s.mode === 'live') {
+        expect(isDemoRoute(s.screen), s.id).toBe(true);
+        expect(s.advanceOn).toBe('action');
+        expect(isPressStep(s), s.id).toBe(true);
+      } else {
+        expect(s.mode, s.id).toBe('passive');
+        expect(s.advanceOn).toBe('tap');
+      }
+    }
+  });
+
+  it('ends on Done, or on a button the member presses', () => {
+    const last = steps[steps.length - 1];
+    if (last.primaryLabel) expect(last.primaryLabel).toBe(ACTIONS.done);
+    else expect(isPressStep(last)).toBe(true);
   });
 
   it('builds a fresh list each call, so a replay cannot inherit a mutation', () => {
@@ -192,5 +207,25 @@ describe('every guide', () => {
         expect(s.screen.startsWith('GuideDemo')).toBe(false);
       }
     }
+  });
+});
+
+/* ── Which steps are pressed, and which are read ─────────────────────────── */
+describe('button steps', () => {
+  const pressIds = (steps) => steps.filter(isPressStep).map((s) => s.id);
+
+  it('makes every button a press, and leaves cards on Next', () => {
+    expect(pressIds(welcomeTourSteps())).toEqual(['A4']);
+    expect(pressIds(firstWorkoutSteps({ hasCoach: false })))
+      .toEqual(['W0', 'W1', 'W2', 'W3', 'W4', 'W6', 'W8']);
+    expect(pressIds(firstWorkoutSteps({ hasCoach: true }))).toEqual(['W0', 'W4', 'W6', 'W8']);
+    expect(pressIds(bookingPracticeSteps())).toEqual(['K0', 'K1', 'K3', 'K4', 'K5', 'K6']);
+    expect(pressIds(coachChatSteps())).toEqual(['C0']);
+  });
+
+  it('ends the tour on the check-in press when the card is hidden', () => {
+    const steps = welcomeTourSteps({ showCard: false });
+    expect(steps[steps.length - 1].id).toBe('A4');
+    expect(isPressStep(steps[steps.length - 1])).toBe(true);
   });
 });

@@ -26,6 +26,7 @@ import { DEMO_BANNER } from '../copy';
 import { DEMO_ACTIVITIES } from './demoData';
 import { DEMO_COVERS } from './demoImages';
 import { useDemoBooking } from './demoBookingState';
+import { useGuide } from '../GuideProvider';
 
 const CATEGORIES = ['All', 'Cardio', 'Recovery', 'Sport'];
 
@@ -41,6 +42,7 @@ const badgeStyle = (n) => {
 export default function GuideDemoActivities() {
   const balance = useDemoBooking((s) => s.balance);
   const pickActivity = useDemoBooking((s) => s.pickActivity);
+  const { advance } = useGuide();
 
   return (
     <DemoScaffold label={DEMO_BANNER.booking}>
@@ -82,7 +84,7 @@ export default function GuideDemoActivities() {
         {DEMO_ACTIVITIES.map((a, i) => {
           const badge = badgeStyle(a.slots);
           const card = (
-            <TouchableOpacity style={s.card} onPress={() => pickActivity(a)} activeOpacity={0.9}>
+            <TouchableOpacity style={s.card} onPress={() => { pickActivity(a); advance(T.DB_CARD); }} activeOpacity={0.9}>
               <View style={s.cover}>
                 <Image source={DEMO_COVERS[a.name]} style={[StyleSheet.absoluteFill, s.coverImage]} resizeMode="cover" />
                 <LinearGradient colors={['transparent', 'transparent', '#0D0D0F']} style={StyleSheet.absoluteFill} />

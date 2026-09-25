@@ -43,9 +43,9 @@ export const useDemoBooking = create((set, get) => ({
 /**
  * Everything the run needs, chosen up front.
  *
- * A member who taps Next rather than the highlighted card never picks anything,
- * and the detail screen would open with nothing on it. Seeding means every
- * screen has something to show from the start; tapping a card still changes it.
+ * The member picks the activity, date and time themselves; seeding is the
+ * backstop, so no screen ever opens with nothing on it. Every tap still
+ * replaces the seeded choice.
  */
 export function seedDemoBooking() {
   const dates = demoDates();
