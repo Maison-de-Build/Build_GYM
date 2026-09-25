@@ -41,10 +41,15 @@ export default function GuideReplayScreen({ navigation }) {
   }, [config]);
 
   const replay = useCallback((key) => {
-    // Home is where every guide runs, so go there first and let the launcher
-    // take over. returnTo brings the member back to Profile when it ends.
+    // Every guide starts on Home now, so go there first and let the launcher
+    // take over. When it ends the member comes back to this list with the whole
+    // stack beneath it — list, Profile, Home — so both the back arrow and the
+    // phone's back button work. The first version returned to a lone Profile
+    // screen with nothing under it, and back went nowhere.
     navigation.navigate('MainTabs');
-    setTimeout(() => launchGuide(key, { returnTo: 'Profile' }), 350);
+    setTimeout(() => launchGuide(key, {
+      returnStack: ['MainTabs', 'Profile', 'GuideReplay'],
+    }), 350);
   }, [launchGuide, navigation]);
 
   const confirmReset = useCallback(() => {

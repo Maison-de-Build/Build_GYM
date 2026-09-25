@@ -74,13 +74,21 @@ describe('firstWorkoutSteps', () => {
     const free = firstWorkoutSteps({ hasCoach: false });
     const coached = firstWorkoutSteps({ hasCoach: true });
 
-    expect(free.map((s) => s.id)).toEqual(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']);
-    expect(coached.map((s) => s.id)).toEqual(['W4', 'W5', 'W6', 'W7', 'W8']);
+    expect(free.map((s) => s.id)).toEqual(['W0', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']);
+    expect(coached.map((s) => s.id)).toEqual(['W0', 'W4', 'W5', 'W6', 'W7', 'W8']);
   });
 
   it('gives both versions the identical logging half', () => {
-    const free = firstWorkoutSteps({ hasCoach: false }).filter((s) => s.id >= 'W4');
-    expect(firstWorkoutSteps({ hasCoach: true })).toEqual(free);
+    const logging = (list) => list.filter((s) => s.id >= 'W4');
+    expect(logging(firstWorkoutSteps({ hasCoach: true })))
+      .toEqual(logging(firstWorkoutSteps({ hasCoach: false })));
+  });
+
+  // A coached member has no add button, so their first step points at the card
+  // their coach's session appears on instead.
+  it('opens on the add button for freestyle and the workout card when coached', () => {
+    expect(firstWorkoutSteps({ hasCoach: false })[0].target).toBe(T.HOME_ADD_WORKOUT);
+    expect(firstWorkoutSteps({ hasCoach: true })[0].target).toBe(T.HOME_TODAY_WORKOUT);
   });
 
   it('never mentions building a template, which no member can do', () => {
@@ -89,9 +97,9 @@ describe('firstWorkoutSteps', () => {
     }
   });
 
-  it('walks choice, then player, then summary', () => {
+  it('walks Home, then choice, then player, then summary', () => {
     const screens = [...new Set(firstWorkoutSteps().map((s) => s.screen))];
-    expect(screens).toEqual(['GuideDemoWorkoutChoice', 'GuideDemoPlayer', 'GuideDemoSummary']);
+    expect(screens).toEqual(['MainTabs', 'GuideDemoWorkoutChoice', 'GuideDemoPlayer', 'GuideDemoSummary']);
   });
 
   it('defaults to the freestyle version', () => {
@@ -111,12 +119,16 @@ describe('bookingPracticeSteps', () => {
     expect(targets).not.toContain('demoBooking.category');
   });
 
-  it('runs list, detail, success, bookings, transactions in that order', () => {
+  it('runs Home, list, detail, success, bookings, transactions in that order', () => {
     const screens = [...new Set(bookingPracticeSteps().map((s) => s.screen))];
     expect(screens).toEqual([
-      'GuideDemoActivities', 'GuideDemoActivityDetail', 'GuideDemoBookingSuccess',
+      'MainTabs', 'GuideDemoActivities', 'GuideDemoActivityDetail', 'GuideDemoBookingSuccess',
       'GuideDemoMyBookings', 'GuideDemoTransactions',
     ]);
+  });
+
+  it('starts on the real ACTIVITIES tile', () => {
+    expect(bookingPracticeSteps()[0].target).toBe(T.HOME_ACTIVITIES);
   });
 
   // My Bookings is not on Home, so the guide reaches it the way the real app
@@ -136,15 +148,49 @@ describe('bookingPracticeSteps', () => {
 
 /* ── coach chat ──────────────────────────────────────────────────────────── */
 describe('coachChatSteps', () => {
-  it('is two steps, both on the demo chat', () => {
+  it('starts on the MY COACH card, then two steps on the demo chat', () => {
     const steps = coachChatSteps();
-    expect(steps.map((s) => s.id)).toEqual(['C1', 'C2']);
-    for (const s of steps) expect(s.screen).toBe('GuideDemoChat');
+    expect(steps.map((s) => s.id)).toEqual(['C0', 'C1', 'C2']);
+    expect(steps[0]).toMatchObject({ screen: 'MainTabs', target: T.HOME_COACH });
+    for (const s of steps.slice(1)) expect(s.screen).toBe('GuideDemoChat');
   });
 
   it('never suggests the guide sends anything', () => {
     for (const s of coachChatSteps()) {
       expect(`${s.title} ${s.body}`).not.toMatch(/we(’|')?ll send|sends for you/i);
+    }
+  });
+});
+
+/* ── Rules the engine relies on ──────────────────────────────────────────── */
+describe('every guide', () => {
+  // The engine abandons a guide when the member lands on a screen other than
+  // the step's own. A step with no screen could never be checked.
+  it.each(ALL)('%s names the screen every step lives on', (_n, build) => {
+    for (const s of build()) expect(s.screen, s.id).toBeTruthy();
+  });
+
+  // Guides 2–4 open on the real Home button that leads to the feature, before
+  // any practice screen, so the member learns where it lives.
+  it.each([
+    ['first workout, freestyle', () => firstWorkoutSteps({ hasCoach: false })],
+    ['first workout, coached', () => firstWorkoutSteps({ hasCoach: true })],
+    ['booking practice', () => bookingPracticeSteps()],
+    ['coach chat', () => coachChatSteps()],
+  ])('%s starts on Home, and that step moves on by itself if the button is missing', (_n, build) => {
+    const [first, second] = build();
+    expect(first.screen).toBe('MainTabs');
+    expect(first.optional).toBe(true);
+    expect(second.screen).not.toBe('MainTabs');
+  });
+
+  // Only practice screens carry the practice banner, so the Home step of these
+  // guides must not be one.
+  it('never marks the real Home as a practice screen', () => {
+    for (const [, build] of ALL) {
+      for (const s of build().filter((x) => x.screen === 'MainTabs')) {
+        expect(s.screen.startsWith('GuideDemo')).toBe(false);
+      }
     }
   });
 });

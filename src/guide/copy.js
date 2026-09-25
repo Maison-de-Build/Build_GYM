@@ -63,6 +63,32 @@ export const TOUR = {
   skipToast: 'You can replay this from Profile.',
 };
 
+/* ── The first step of guides 2–4: the real button on Home ─────────────── */
+
+// DEMO WORDING, all four. Each guide now opens on the button that leads to the
+// feature on the real Home, before any practice screen — otherwise the member
+// learns the feature but not where to find it.
+export const ENTRY = {
+  firstWorkoutFreestyle: {
+    title: 'Your first workout',
+    body: 'Add today\u2019s workout from here.',
+  },
+  // A coached member has no add button: their coach's session appears on this
+  // card and they start it from there.
+  firstWorkoutCoached: {
+    title: 'Your first workout',
+    body: 'Your coach\u2019s session shows up here. You start it from this card.',
+  },
+  booking: {
+    title: 'Activities',
+    body: 'Everything you can book at the facility starts here.',
+  },
+  coach: {
+    title: 'Your coach',
+    body: 'Your coach is right here on Home. Tap to open your chat.',
+  },
+};
+
 /* ── Part B: the Get started card ───────────────────────────────────────── */
 
 export const CARD = {

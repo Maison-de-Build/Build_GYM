@@ -5,38 +5,51 @@
  * is on screen, and how the member gets to the next one. Screens contribute
  * nothing but a <GuideTarget id="..."> wrapper; no screen contains guide logic.
  *
- * Because every guide runs on demo screens we build, targets mount with the
- * screen and never wait on a fetch. The 5-second fallback below is still here —
- * a step whose target never registers must offer a way out rather than leave
- * the member under a dim layer with nothing to tap.
+ * Every step names the screen it lives on. That is what lets the engine notice
+ * when the member has been taken somewhere else mid-guide — a notification, the
+ * phone's back button, a tap that got through — and step aside instead of
+ * leaving an overlay over a screen where its target does not exist.
  */
 import React, {
-  createContext, useCallback, useContext, useMemo, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
+import { BackHandler } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 
 import { navigationRef } from '../navigation/navigationRef';
 import { useGuideStore } from './guideStore';
+import { buildReturnRoutes, pruneDemoRoutes, snapshotNames } from './guideNav';
 
+// Two contexts on purpose. Measurements land on every scroll frame; if they
+// lived in the same context as the session, every screen reading the session —
+// Home included — would re-render sixty times a second while it scrolled.
 const GuideContext = createContext(null);
+const GuideMeasureContext = createContext(null);
 
 /** How long a step waits for its target before offering Try again / exit. */
 export const TARGET_TIMEOUT_MS = 5000;
 
+/** How long an optional step waits before quietly moving on. */
+export const OPTIONAL_TIMEOUT_MS = 1500;
+
 export function GuideProvider({ children }) {
-  // { guideKey, steps, index, onDone } — null when no guide is running.
+  // { guideKey, steps, index, onDone, returnStack } — null when nothing runs.
   const [session, setSession] = useState(null);
-  // id → { x, y, width, height }. A ref, not state: measurement fires often and
-  // re-rendering the whole tree on every layout pass would fight the animation.
+  // The controls act on the live session through this rather than through a
+  // setSession updater: ending a guide is a side effect, and one inside an
+  // updater that returns its input unchanged is silently dropped.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
+  // id → { x, y, width, height }. A ref, not state: measurement fires often.
   const targetsRef = useRef(new Map());
-  // Bumped when a measurement lands, so the overlay alone re-reads the map.
   const [measureTick, setMeasureTick] = useState(0);
+  // Each target parks its own measure fn here, so a scrolling screen can ask the
+  // active one to re-measure without knowing which target that is.
+  const measurersRef = useRef(new Map());
 
   const markGuide = useGuideStore((s) => s.markGuide);
   const setWelcomeTour = useGuideStore((s) => s.setWelcomeTour);
-
-  // Each target parks its own measure fn here, so a screen that scrolls can ask
-  // the active one to re-measure without knowing which target that is.
-  const measurersRef = useRef(new Map());
 
   const registerMeasurer = useCallback((id, fn) => {
     if (fn) measurersRef.current.set(id, fn);
@@ -61,100 +74,126 @@ export function GuideProvider({ children }) {
     else markGuide(guideKey, status);
   }, [markGuide, setWelcomeTour]);
 
-  /**
-   * End a guide: record how it went, drop every measurement, and put the member
-   * back where they launched it from.
-   *
-   * That last part is what makes the demo screens safe to leave at any point.
-   * A guide can walk several screens deep into its own stack, so exiting from
-   * the middle has to unwind all of it — otherwise the member taps back out of
-   * a demo booking into a demo activity list with no guide running.
-   */
-  const stop = useCallback((guideKey, status, onDone, returnTo) => {
-    recordOutcome(guideKey, status);
+  const clearSession = () => {
+    sessionRef.current = null;
     targetsRef.current.clear();
     setSession(null);
-    if (returnTo && navigationRef.isReady()) {
-      navigationRef.reset({ index: 0, routes: [{ name: returnTo }] });
-    }
-    onDone?.(status);
+  };
+
+  /**
+   * End a guide the member finished or skipped: record it, and put them back on
+   * the stack they launched it from — the whole stack, not just its top screen,
+   * so back works normally afterwards.
+   */
+  const stop = useCallback((cur, status) => {
+    clearSession();
+    recordOutcome(cur.guideKey, status);
+    resetTo(buildReturnRoutes(rootRoutes(), cur.returnStack));
+    cur.onDone?.(status);
   }, [recordOutcome]);
 
   /**
-   * Begin a guide. `steps` is the whole list up front — no step is computed
-   * from live data, which is what lets a replay be identical to a first run.
+   * Step aside without recording anything. Used when something other than the
+   * guide took the member off its screen. They stay where they went; only the
+   * practice screens underneath are removed.
+   */
+  const abandon = useCallback(() => {
+    const cur = sessionRef.current;
+    if (!cur) return;
+    clearSession();
+    const routes = rootRoutes();
+    const pruned = pruneDemoRoutes(routes);
+    if (pruned.length !== routes.length) resetTo(pruned);
+    cur.onDone?.('abandoned');
+  }, []);
+
+  /**
+   * Begin a guide. `returnStack` is where to land when it ends, bottom first;
+   * without one the guide returns to the stack it was launched from.
    */
   const start = useCallback((guideKey, steps, options = {}) => {
     if (!steps?.length) return;
+    const s = {
+      guideKey,
+      steps,
+      index: 0,
+      onDone: options.onDone,
+      returnStack: options.returnStack || snapshotNames(rootRoutes()),
+    };
     targetsRef.current.clear();
-    const returnTo = options.returnTo
-      || (navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : null);
-    setSession({ guideKey, steps, index: 0, onDone: options.onDone, returnTo });
+    sessionRef.current = s;
+    setSession(s);
     const first = steps[0];
-    if (first.screen) navigateTo(first.screen, first.params);
+    if (first.screen && currentRouteName() !== first.screen) navigateTo(first.screen, first.params);
   }, []);
 
-  const goToIndex = useCallback((nextIndex) => {
-    const cur = sessionRef.current;
-    if (!cur || nextIndex >= cur.steps.length) return; // finish() handles the end
-    const target = cur.steps[nextIndex];
-    if (target.screen && target.screen !== cur.steps[cur.index].screen) {
-      targetsRef.current.clear();
-      navigateTo(target.screen, target.params);
-    }
-    setSession({ ...cur, index: nextIndex });
-  }, []);
-
-  const finish = useCallback(() => {
-    const cur = sessionRef.current;
-    if (cur) stop(cur.guideKey, 'completed', cur.onDone, cur.returnTo);
-  }, [stop]);
-
-  const next = useCallback(() => {
+  const moveTo = useCallback((nextIndex) => {
     const cur = sessionRef.current;
     if (!cur) return;
-    const nextIndex = cur.index + 1;
-    if (nextIndex >= cur.steps.length) {
-      stop(cur.guideKey, 'completed', cur.onDone, cur.returnTo);
-      return;
-    }
+    if (nextIndex >= cur.steps.length) { stop(cur, 'completed'); return; }
     const nextStep = cur.steps[nextIndex];
-    // Changing screens invalidates every measurement taken on the old one.
+    const updated = { ...cur, index: nextIndex };
+    // Updated before navigating, so the route listener below already expects the
+    // new screen when the navigation lands and doesn't mistake it for a detour.
+    sessionRef.current = updated;
     if (nextStep.screen && nextStep.screen !== cur.steps[cur.index].screen) {
       targetsRef.current.clear();
       navigateTo(nextStep.screen, nextStep.params);
     }
-    setSession({ ...cur, index: nextIndex });
+    setSession(updated);
+  }, [stop]);
+
+  const next = useCallback(() => {
+    const cur = sessionRef.current;
+    if (cur) moveTo(cur.index + 1);
+  }, [moveTo]);
+
+  const goToIndex = useCallback((i) => moveTo(i), [moveTo]);
+
+  const finish = useCallback(() => {
+    const cur = sessionRef.current;
+    if (cur) stop(cur, 'completed');
   }, [stop]);
 
   /** Skip / Exit guide. Ends the guidance only — it never undoes anything. */
   const exit = useCallback(() => {
     const cur = sessionRef.current;
-    if (cur) stop(cur.guideKey, 'skipped', cur.onDone, cur.returnTo);
+    if (cur) stop(cur, 'skipped');
   }, [stop]);
 
+  const guideKey = session ? session.guideKey : null;
+
+  // The phone's back button during a guide is Skip, as the spec says. Without
+  // this it popped the screen underneath while the overlay stayed put, pointing
+  // at a target on a screen that had just gone.
+  useEffect(() => {
+    if (!guideKey) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      exit();
+      return true;
+    });
+    return () => sub.remove();
+  }, [guideKey, exit]);
+
+  // If anything other than the guide takes the member off the step's screen,
+  // step aside. This is what stops a guide carrying on invisibly — the state
+  // behind "nothing responds": a running guide refuses to launch another one.
+  useEffect(() => {
+    if (!guideKey) return undefined;
+    return navigationRef.addListener('state', () => {
+      const cur = sessionRef.current;
+      if (!cur) return;
+      const expected = cur.steps[cur.index]?.screen;
+      const route = currentRouteName();
+      if (expected && route && route !== expected) abandon();
+    });
+  }, [guideKey, abandon]);
+
   const step = session ? session.steps[session.index] : null;
-  // Read inside remeasureActive, which must not be rebuilt on every step or the
-  // scroll handler it is wired into would be re-subscribed constantly.
   const stepRef = useRef(step);
   stepRef.current = step;
-  // The controls below act on the live session through this rather than through
-  // a setSession updater. Ending a guide is a side effect, and a side effect
-  // inside an updater that returns its input unchanged is dropped: React bails
-  // out of the re-render and the nested setSession(null) never lands. That is
-  // exactly what made Skip look dead on device while Next worked, since Next
-  // happened to return a new object.
-  const sessionRef = useRef(session);
-  sessionRef.current = session;
 
-  /**
-   * Re-measure whatever the current step points at.
-   *
-   * Called on every scroll frame by screens that scroll. Timers alone were not
-   * enough: a scroll animation finishing later than the timer left the cutout
-   * drawn at the target's old position, which is worse than no highlight —
-   * it points confidently at the wrong thing.
-   */
+  /** Re-measure whatever the current step points at. Called on scroll frames. */
   const remeasureActive = useCallback(() => {
     const target = stepRef.current?.target;
     if (target) measurersRef.current.get(target)?.();
@@ -166,8 +205,6 @@ export function GuideProvider({ children }) {
     stepNumber: session ? session.index + 1 : 0,
     stepCount: session ? session.steps.length : 0,
     isRunning: !!session,
-    targets: targetsRef.current,
-    measureTick,
     registerTarget,
     unregisterTarget,
     registerMeasurer,
@@ -177,16 +214,47 @@ export function GuideProvider({ children }) {
     goToIndex,
     finish,
     exit,
-  }), [session, step, measureTick, registerTarget, unregisterTarget, registerMeasurer,
+  }), [session, step, registerTarget, unregisterTarget, registerMeasurer,
     remeasureActive, start, next, goToIndex, finish, exit]);
 
-  return <GuideContext.Provider value={value}>{children}</GuideContext.Provider>;
+  const measureValue = useMemo(
+    () => ({ targets: targetsRef.current, measureTick }),
+    [measureTick],
+  );
+
+  return (
+    <GuideContext.Provider value={value}>
+      <GuideMeasureContext.Provider value={measureValue}>
+        {children}
+      </GuideMeasureContext.Provider>
+    </GuideContext.Provider>
+  );
 }
 
 export function useGuide() {
   const ctx = useContext(GuideContext);
   if (!ctx) throw new Error('useGuide must be used inside <GuideProvider>');
   return ctx;
+}
+
+/** Measurements — for the overlay only, so nothing else re-renders on scroll. */
+export function useGuideMeasure() {
+  const ctx = useContext(GuideMeasureContext);
+  if (!ctx) throw new Error('useGuideMeasure must be used inside <GuideProvider>');
+  return ctx;
+}
+
+function rootRoutes() {
+  return navigationRef.isReady() ? (navigationRef.getRootState()?.routes || []) : [];
+}
+
+function currentRouteName() {
+  return navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : null;
+}
+
+function resetTo(routes) {
+  if (!navigationRef.isReady() || !routes?.length) return;
+  navigationRef.dispatch(CommonActions.reset({ index: routes.length - 1, routes }));
 }
 
 /** Safe to call before the navigator is ready — the first step waits for mount. */

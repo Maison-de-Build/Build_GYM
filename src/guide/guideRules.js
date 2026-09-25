@@ -110,3 +110,19 @@ export function mergeLocalState(state = DEFAULT_STATE, partial = {}) {
   }
   return next;
 }
+
+/**
+ * Whether a tap on the real Home button for a guide should run that guide
+ * instead of opening the feature.
+ *
+ * Only the first time: once the guide has been finished or skipped the button
+ * goes back to being a button, or the member could never reach the real screen
+ * from Home. And never after the member hid the Get started card — "Hide these
+ * guides?" is them saying stop, and a guide springing out of a normal button
+ * afterwards would ignore that.
+ */
+export function shouldInterceptEntry(state = DEFAULT_STATE, config = DEFAULT_CONFIG, guideKey) {
+  if (state.card_dismissed) return false;
+  if (!eligibleGuides(config).includes(guideKey)) return false;
+  return (state.guides?.[guideKey]?.status ?? 'not_started') === 'not_started';
+}

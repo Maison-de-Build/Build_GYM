@@ -14,6 +14,10 @@ export const T = {
   HOME_COINS:         'home.coins',
   HOME_CHECK_IN:      'home.checkIn',
   HOME_GET_STARTED:   'home.getStarted',
+  // Where guides 2–4 begin: the real button each feature lives behind.
+  HOME_ADD_WORKOUT:   'home.addWorkout',
+  HOME_ACTIVITIES:    'home.activities',
+  HOME_COACH:         'home.coach',
 
   // ── Demo: first workout ────────────────────────────────────────────────
   DW_TEMPLATE_TAB:   'demoWorkout.templateTab',

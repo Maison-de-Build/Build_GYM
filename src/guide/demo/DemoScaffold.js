@@ -20,8 +20,8 @@ import PracticeBanner from './PracticeBanner';
 export default function DemoScaffold({ label, children, style }) {
   return (
     <View style={[s.screen, style]}>
-      <StatusBar barStyle="light-content" backgroundColor={MC.violet} />
-      <PracticeBanner label={label} />
+      <StatusBar barStyle="light-content" backgroundColor={MC.bg} />
+      <PracticeBanner label={label} withExit />
       <View style={s.body}>{children}</View>
     </View>
   );

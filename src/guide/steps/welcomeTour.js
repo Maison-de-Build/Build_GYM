@@ -19,23 +19,31 @@ import { TOUR, ACTIONS } from '../copy';
  *   coached member picks nothing, so the freestyle line would describe
  *   something the API refuses them.
  */
-export function welcomeTourSteps({ hasCoach = false } = {}) {
+export function welcomeTourSteps({ hasCoach = false, showCard = true } = {}) {
   const first = hasCoach ? TOUR.todayWorkoutCoached : TOUR.todayWorkoutFreestyle;
 
-  return [
+  const steps = [
     step('A1', T.HOME_TODAY_WORKOUT, first),
     step('A2', T.HOME_CALORIES, TOUR.calories),
     step('A3', T.HOME_COINS, TOUR.coins),
     step('A4', T.HOME_CHECK_IN, TOUR.checkIn),
-    // Last step hands over to the card the other three guides launch from.
-    step('A5', T.HOME_GET_STARTED, TOUR.startHere, ACTIONS.done),
   ];
+
+  // The last step points at the Get started card. When the card won't show —
+  // the member hid it, or finished everything on it — the tour ends at step 4,
+  // as the spec says. Pointing at a card that isn't there is what produced the
+  // "This didn't load" stop on a replayed tour.
+  if (showCard) steps.push(step('A5', T.HOME_GET_STARTED, TOUR.startHere));
+
+  steps[steps.length - 1].primaryLabel = ACTIONS.done;
+  return steps;
 }
 
 function step(id, target, { title, body }, primaryLabel = ACTIONS.next) {
   return {
     id,
     target,
+    screen: 'MainTabs',
     // Passive: the dim blocks everything, and a tap on the highlight advances
     // instead of opening the feature underneath.
     mode: 'passive',

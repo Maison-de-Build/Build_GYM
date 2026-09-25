@@ -14,8 +14,9 @@
  * screen — because it is not on Home.
  */
 import { T } from '../targets';
-import { ACTIONS } from '../copy';
+import { ACTIONS, ENTRY } from '../copy';
 
+const HOME = 'MainTabs';
 const LIST = 'GuideDemoActivities';
 const DETAIL = 'GuideDemoActivityDetail';
 const SUCCESS = 'GuideDemoBookingSuccess';
@@ -23,48 +24,49 @@ const BOOKINGS = 'GuideDemoMyBookings';
 const TXNS = 'GuideDemoTransactions';
 
 const STEPS = [
+  // Starts on the real ACTIVITIES tile on Home, so the member learns where
+  // booking lives before being shown how it works.
   {
-    id: 'K1', screen: LIST, target: T.DB_LIST,
-    title: 'Activities',
-    body: 'Everything you can book at the facility.',
+    id: 'K0', screen: HOME, target: T.HOME_ACTIVITIES, optional: true,
+    ...ENTRY.booking,
   },
   {
-    id: 'K2', screen: LIST, target: T.DB_CARD,
+    id: 'K1', screen: LIST, target: T.DB_CARD,
     title: 'Open an activity',
     body: 'Tap one to see the details.',
   },
   {
-    id: 'K3', screen: DETAIL, target: T.DB_PRICE,
+    id: 'K2', screen: DETAIL, target: T.DB_PRICE,
     title: 'Priced in Build Coins',
     body: 'What it costs, how long it runs and what’s included.',
   },
   {
-    id: 'K4', screen: DETAIL, target: T.DB_DATE,
+    id: 'K3', screen: DETAIL, target: T.DB_DATE,
     title: 'Pick a date',
     body: 'Choose a day that works.',
   },
   {
-    id: 'K5', screen: DETAIL, target: T.DB_SLOT,
+    id: 'K4', screen: DETAIL, target: T.DB_SLOT,
     title: 'Pick a time',
     body: 'Choose a slot.',
   },
   {
-    id: 'K6', screen: DETAIL, target: T.DB_BOOK,
+    id: 'K5', screen: DETAIL, target: T.DB_BOOK,
     title: 'Book it',
     body: 'This is a practice run, so nothing’s charged.',
   },
   {
-    id: 'K7', screen: SUCCESS, target: T.DB_VIEW_BOOKINGS,
+    id: 'K6', screen: SUCCESS, target: T.DB_VIEW_BOOKINGS,
     title: 'Booked',
     body: 'The coins came off your balance. Here’s where your booking lives.',
   },
   {
-    id: 'K8', screen: BOOKINGS, target: T.DB_BOOKING_CARD,
+    id: 'K7', screen: BOOKINGS, target: T.DB_BOOKING_CARD,
     title: 'My bookings',
     body: 'Upcoming bookings sit here with the date, time and details.',
   },
   {
-    id: 'K9', screen: TXNS, target: T.DB_TXN_ROW,
+    id: 'K8', screen: TXNS, target: T.DB_TXN_ROW,
     title: 'Every coin, accounted for',
     body: 'Bookings and credits from the facility show up here.',
     primaryLabel: ACTIONS.done,

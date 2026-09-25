@@ -70,5 +70,6 @@ export const useGuideStore = create((set, get) => ({
 
 export {
   eligibleGuides, guideProgress, isCardExhausted,
-  shouldShowCard, shouldAutoStartWelcome, workoutGuideVariant, GUIDE_KEYS,
+  shouldShowCard, shouldAutoStartWelcome, workoutGuideVariant, shouldInterceptEntry,
+  GUIDE_KEYS,
 } from './guideRules';

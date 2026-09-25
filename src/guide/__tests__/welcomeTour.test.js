@@ -69,3 +69,24 @@ describe('welcomeTourSteps', () => {
     expect(welcomeTourSteps()[0].title).toBe(TOUR.todayWorkoutFreestyle.title);
   });
 });
+
+describe('welcomeTourSteps without the Get started card', () => {
+  // Replaying the tour after hiding the card used to point step 5 at a card
+  // that wasn't there — the "This didn't load" stop QA hit.
+  it('ends at step 4 when the card will not show', () => {
+    const steps = welcomeTourSteps({ showCard: false });
+    expect(steps.map((s) => s.id)).toEqual(['A1', 'A2', 'A3', 'A4']);
+    expect(steps.map((s) => s.target)).not.toContain(T.HOME_GET_STARTED);
+  });
+
+  it('still ends on Done', () => {
+    const steps = welcomeTourSteps({ showCard: false });
+    expect(steps[steps.length - 1].primaryLabel).toBe(ACTIONS.done);
+    expect(steps.slice(0, -1).every((s) => s.primaryLabel === ACTIONS.next)).toBe(true);
+  });
+
+  it('keeps all five steps when the card is showing', () => {
+    expect(welcomeTourSteps({ showCard: true })).toHaveLength(5);
+    expect(welcomeTourSteps()).toHaveLength(5);
+  });
+});

@@ -177,3 +177,34 @@ describe('mergeLocalState', () => {
     expect(mergeLocalState(DEFAULT_STATE, {})).toEqual(DEFAULT_STATE);
   });
 });
+
+/* ── shouldInterceptEntry ────────────────────────────────────────────────── */
+import { shouldInterceptEntry } from '../guideRules.js';
+
+describe('shouldInterceptEntry', () => {
+  it('runs the guide on the first tap of its Home button', () => {
+    expect(shouldInterceptEntry(DEFAULT_STATE, config(), 'booking_practice')).toBe(true);
+    expect(shouldInterceptEntry(DEFAULT_STATE, config(), 'first_workout')).toBe(true);
+  });
+
+  // Afterwards the button must open the real screen, or the member could never
+  // reach Activities from Home.
+  it('lets the button work normally once the guide is done or skipped', () => {
+    expect(shouldInterceptEntry(withStatus('booking_practice', 'completed'), config(), 'booking_practice')).toBe(false);
+    expect(shouldInterceptEntry(withStatus('booking_practice', 'skipped'), config(), 'booking_practice')).toBe(false);
+  });
+
+  it('never intercepts after the member hid the guides', () => {
+    expect(shouldInterceptEntry(state({ card_dismissed: true }), config(), 'booking_practice')).toBe(false);
+  });
+
+  it('respects the server switch and the coach rule', () => {
+    expect(shouldInterceptEntry(DEFAULT_STATE, config({ bookingPractice: false }), 'booking_practice')).toBe(false);
+    expect(shouldInterceptEntry(DEFAULT_STATE, config({ hasCoach: false }), 'coach_chat')).toBe(false);
+    expect(shouldInterceptEntry(DEFAULT_STATE, config({ hasCoach: true }), 'coach_chat')).toBe(true);
+  });
+
+  it('does nothing before the config has loaded', () => {
+    expect(shouldInterceptEntry(DEFAULT_STATE, DEFAULT_CONFIG, 'booking_practice')).toBe(false);
+  });
+});

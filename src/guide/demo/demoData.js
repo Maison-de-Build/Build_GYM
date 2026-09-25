@@ -20,6 +20,8 @@ export const DEMO_ACTIVITIES = [
   {
     id: 'demo-act-1',
     name: 'Yoga',
+    slots: 6,
+    nextSlot: '7:00 AM',
     coinPrice: 80,
     durationMinutes: 45,
     description: 'Improve flexibility, balance and mental clarity with guided yoga sessions.',
@@ -27,6 +29,8 @@ export const DEMO_ACTIVITIES = [
   {
     id: 'demo-act-2',
     name: 'HIIT',
+    slots: 3,
+    nextSlot: '6:30 PM',
     coinPrice: 80,
     durationMinutes: 45,
     description: 'High-Intensity Interval Training for maximum calorie burn in minimum time.',
@@ -34,6 +38,8 @@ export const DEMO_ACTIVITIES = [
   {
     id: 'demo-act-3',
     name: 'Cycling',
+    slots: 5,
+    nextSlot: '7:00 AM',
     coinPrice: 60,
     durationMinutes: 30,
     description: 'Indoor cycling class with energetic music and guided resistance training.',
@@ -41,6 +47,8 @@ export const DEMO_ACTIVITIES = [
   {
     id: 'demo-act-4',
     name: 'Pickleball',
+    slots: 2,
+    nextSlot: '6:30 PM',
     coinPrice: 120,
     durationMinutes: 45,
     description: 'Fast-paced paddle sport that combines elements of tennis, badminton, and table tennis.',
@@ -48,6 +56,8 @@ export const DEMO_ACTIVITIES = [
   {
     id: 'demo-act-5',
     name: 'Sauna & Steam',
+    slots: 4,
+    nextSlot: '7:00 AM',
     coinPrice: 10,
     durationMinutes: 30,
     description: 'Relax and recover with our premium sauna and steam room facilities.',

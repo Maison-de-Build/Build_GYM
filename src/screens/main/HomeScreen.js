@@ -26,7 +26,9 @@ import { MC, MF as MdbFont } from '../../theme/mdbKit';
 import useMemberMode from '../../hooks/useMemberMode';
 import useWorkoutActions from '../../hooks/useWorkoutActions';
 import GetStartedCard from '../../components/guide/GetStartedCard';
-import { GuideTarget, useGuide, useGuideStore, shouldAutoStartWelcome } from '../../guide';
+import {
+  GuideTarget, useGuide, useGuideStore, shouldAutoStartWelcome, shouldInterceptEntry,
+} from '../../guide';
 import { useGuideLauncher } from '../../guide/useGuideLauncher';
 import { T } from '../../guide/targets';
 
@@ -147,6 +149,18 @@ export default function HomeScreen({ navigation }) {
   const dismissCard = useGuideStore((s) => s.dismissCard);
   const { isRunning: guideRunning, remeasureActive } = useGuide();
   const launchGuide = useGuideLauncher();
+
+  // The first tap of a feature's Home button runs its guide instead, while that
+  // guide is still unseen. After that the button just opens the feature.
+  const openOrGuide = useCallback((guideKey, open) => {
+    if (!guideRunning && guideLoaded && shouldInterceptEntry(guideState, guideConfig, guideKey)
+        && launchGuide(guideKey)) return;
+    open();
+  }, [guideRunning, guideLoaded, guideState, guideConfig, launchGuide]);
+  const openAddWorkout = useCallback(
+    () => openOrGuide('first_workout', () => navigation.navigate('MdbTrainingHub')),
+    [openOrGuide, navigation],
+  );
 
   // App.js asks for notification permission on launch, and a forced-update
   // modal can be up too. Starting the tour underneath either would dim a screen
@@ -344,14 +358,16 @@ export default function HomeScreen({ navigation }) {
                 {...workoutActions(todayInstances[0])}
               />
               {!isPt && (
-                <TouchableOpacity
-                  style={styles.addMoreRow}
-                  onPress={() => navigation.navigate('MdbTrainingHub')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
-                  <Text style={styles.addMoreText}>Add another workout</Text>
-                </TouchableOpacity>
+                <GuideTarget id={T.HOME_ADD_WORKOUT} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+                  <TouchableOpacity
+                    style={styles.addMoreRow}
+                    onPress={openAddWorkout}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
+                    <Text style={styles.addMoreText}>Add another workout</Text>
+                  </TouchableOpacity>
+                </GuideTarget>
               )}
             </View>
           ) : todayInstances.length > 1 ? (
@@ -373,22 +389,32 @@ export default function HomeScreen({ navigation }) {
                 </LuxuryCard>
               </TouchableOpacity>
               {!isPt && (
-                <TouchableOpacity
-                  style={styles.addMoreRow}
-                  onPress={() => navigation.navigate('MdbTrainingHub')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
-                  <Text style={styles.addMoreText}>Add another workout</Text>
-                </TouchableOpacity>
+                <GuideTarget id={T.HOME_ADD_WORKOUT} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+                  <TouchableOpacity
+                    style={styles.addMoreRow}
+                    onPress={openAddWorkout}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
+                    <Text style={styles.addMoreText}>Add another workout</Text>
+                  </TouchableOpacity>
+                </GuideTarget>
               )}
             </View>
           ) : (
             <View style={{ marginTop: 8 }}>
-              <WorkoutEmptyState
-                variant={isPt ? 'pt' : 'freestyle'}
-                onAdd={() => navigation.navigate('MdbTrainingHub')}
-              />
+              {/* Only the freestyle card has an add button to point at. */}
+              <GuideTarget
+                id={T.HOME_ADD_WORKOUT}
+                enabled={!isPt}
+                scrollRef={scrollRef}
+                scrollOffsetRef={scrollOffsetRef}
+              >
+                <WorkoutEmptyState
+                  variant={isPt ? 'pt' : 'freestyle'}
+                  onAdd={openAddWorkout}
+                />
+              </GuideTarget>
             </View>
           )}
         </View>
@@ -463,7 +489,12 @@ export default function HomeScreen({ navigation }) {
         </GuideTarget>
 
         {/* ── MY COACH ─────────────────────────────── */}
-        <MyCoachCard navigation={navigation} />
+        <MyCoachCard
+          navigation={navigation}
+          onOpen={(open) => openOrGuide('coach_chat', open)}
+          scrollRef={scrollRef}
+          scrollOffsetRef={scrollOffsetRef}
+        />
 
         {/* ── QUICK ACCESS GRID ────────────────────── */}
         <View style={styles.quickGrid}>
@@ -480,7 +511,9 @@ export default function HomeScreen({ navigation }) {
                   // had open inside Training — navigate reuses the existing
                   // instance instead. Every other tile keeps push().
                   if (q.route === 'MdbTrainingHub') navigation.navigate(q.route);
-                  else navigation.push(q.route);
+                  else if (q.route === 'Activities') {
+                    openOrGuide('booking_practice', () => navigation.push('Activities'));
+                  } else navigation.push(q.route);
                 }}
               >
                 <MaterialIcons
@@ -493,9 +526,12 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
             );
             // Every tile gets an equal grid slot so tiles occupy identical space.
+            // The Activities tile is where the booking guide starts.
             return (
               <View key={q.label} style={styles.quickTileSlot}>
-                {tile}
+                {q.route === 'Activities'
+                  ? <GuideTarget id={T.HOME_ACTIVITIES} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>{tile}</GuideTarget>
+                  : tile}
                 {cs && (
                   <View style={styles.quickSoonWrap} pointerEvents="none">
                     <View style={styles.quickSoonBadge}>
@@ -588,7 +624,7 @@ function KpiCard({ label, value, icon, color }) {
  * Renders nothing until the thread list is known, so Home never flashes a
  * "no coach" row for a member who does have one.
  */
-function MyCoachCard({ navigation }) {
+function MyCoachCard({ navigation, onOpen, scrollRef, scrollOffsetRef }) {
   const threads = useChatStore((s) => s.threads);
   const init = useChatStore((s) => s.init);
 
@@ -598,11 +634,15 @@ function MyCoachCard({ navigation }) {
   const hasPast = threads.some((t) => t.state === 'archived');
   if (!active && !hasPast) return null;
 
-  const go = () => navigation.push('MyChat');
+  const go = () => {
+    const open = () => navigation.push('MyChat');
+    if (onOpen) onOpen(open); else open();
+  };
 
   if (!active) {
     return (
-      <TouchableOpacity style={styles.coachCard} activeOpacity={0.85} onPress={go}>
+      <GuideTarget id={T.HOME_COACH} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+      <TouchableOpacity style={[styles.coachCard, styles.noGap]} activeOpacity={0.85} onPress={go}>
         <View style={[styles.coachAvatar, styles.coachAvatarFallback]}>
           <MaterialIcons name="chat" size={22} color="#A78BFA" />
         </View>
@@ -612,11 +652,13 @@ function MyCoachCard({ navigation }) {
         </View>
         <MaterialIcons name="chevron-right" size={18} color={COLORS.textMuted} />
       </TouchableOpacity>
+      </GuideTarget>
     );
   }
 
   return (
-    <TouchableOpacity style={styles.coachCard} activeOpacity={0.85} onPress={go}>
+    <GuideTarget id={T.HOME_COACH} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+    <TouchableOpacity style={[styles.coachCard, styles.noGap]} activeOpacity={0.85} onPress={go}>
       {active.counterpartPhoto
         ? <Image source={{ uri: active.counterpartPhoto }} style={styles.coachAvatar} />
         : <View style={[styles.coachAvatar, styles.coachAvatarFallback]}>
@@ -633,6 +675,7 @@ function MyCoachCard({ navigation }) {
         ? <View style={styles.coachPill}><Text style={styles.coachPillTxt}>{active.unread}</Text></View>
         : <MaterialIcons name="chevron-right" size={18} color={COLORS.textMuted} />}
     </TouchableOpacity>
+    </GuideTarget>
   );
 }
 

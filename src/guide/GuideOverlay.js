@@ -24,12 +24,16 @@ import Svg, { Defs, Mask, Rect, LinearGradient as SvgGradient, Stop } from 'reac
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 import { MC, MG, MF, MR } from '../theme/mdbKit';
-import { useGuide, TARGET_TIMEOUT_MS } from './GuideProvider';
+import {
+  useGuide, useGuideMeasure, TARGET_TIMEOUT_MS, OPTIONAL_TIMEOUT_MS,
+} from './GuideProvider';
 import { DEMO_BANNER } from './copy';
-import PracticeBanner from './demo/PracticeBanner';
+import { isDemoRoute } from './guideNav';
+import PracticeBanner, { bannerTopInset } from './demo/PracticeBanner';
 
-// Which guides run on demo screens, and what their banner says. The welcome
-// tour runs on the real Home and has none.
+// What each guide's practice banner says. It shows only on practice screens:
+// the first step of every guide now points at the real button on Home, and a
+// "nothing's booked" strip above the real Home would be the wrong message.
 const DEMO_BANNERS = {
   first_workout: DEMO_BANNER.workout,
   booking_practice: DEMO_BANNER.booking,
@@ -37,25 +41,35 @@ const DEMO_BANNERS = {
 };
 
 const DIM_COLOR = '#08060B';
-const DIM_OPACITY = 0.85;
+// The tour points at bright cards on Home, so a heavy dim still reads. The
+// practice screens are dark cards on a dark ground, and 85% put everything
+// around the highlight out of sight — the member could not see what the screen
+// was, only the one element picked out on it.
+const DIM_TOUR = 0.85;
+const DIM_PRACTICE = 0.5;
 const CUTOUT_PAD = 8;
 const CUTOUT_RADIUS = 12;
 const RING_WIDTH = 1.5;
 const TOOLTIP_MAX_W = 320;
 const TOOLTIP_GAP = 12;
 const FADE_MS = 200;
-// Height of the practice banner's text row below the safe-area inset: 8 top
-// padding + ~16 line + 8 bottom.
-const BANNER_H = 34;
 const SLIDE_MS = 250;
 
 export default function GuideOverlay() {
-  const { session, step, stepNumber, stepCount, targets, measureTick, next, exit, isRunning } = useGuide();
+  const {
+    session, step, stepNumber, stepCount, next, exit, isRunning, remeasureActive,
+  } = useGuide();
+  const { targets, measureTick } = useGuideMeasure();
   const insets = useSafeAreaInsets();
   const { width: SW, height: SH } = Dimensions.get('window');
 
   const [reduceMotion, setReduceMotion] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  // Bumped by Try again, to re-arm the timer. Try again used to clear the
+  // "didn't load" card without re-arming anything, which hid the overlay while
+  // the guide kept running — and a running guide refuses to start another, so
+  // every Get started row then did nothing.
+  const [retry, setRetry] = useState(0);
   const [tooltipH, setTooltipH] = useState(0);
   const fade = useRef(new Animated.Value(0)).current;
   // Cutout geometry, animated so it slides from one target to the next.
@@ -64,6 +78,10 @@ export default function GuideOverlay() {
     w: new Animated.Value(0), h: new Animated.Value(0),
   }).current;
   const hasCutout = useRef(false);
+  // The target the cutout last slid to. The slide only runs when this changes;
+  // re-measurements of the same target (every scroll frame) are placed directly,
+  // or the animation would restart sixty times a second and trail behind.
+  const lastTarget = useRef(null);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
@@ -98,9 +116,16 @@ export default function GuideOverlay() {
   useEffect(() => {
     if (!step || centred) { setTimedOut(false); return undefined; }
     setTimedOut(false);
+    // An optional step (the Home button a guide starts from) moves on quietly
+    // if its target isn't there — the member has no coach card yet, say —
+    // rather than stopping the guide to report something they can't fix.
+    if (step.optional) {
+      const t = setTimeout(() => { if (!targets.get(step.target)) next(); }, OPTIONAL_TIMEOUT_MS);
+      return () => clearTimeout(t);
+    }
     const t = setTimeout(() => setTimedOut(true), TARGET_TIMEOUT_MS);
     return () => clearTimeout(t);
-  }, [step?.id, centred]);
+  }, [step?.id, centred, retry]);
 
   useEffect(() => { if (cutout) setTimedOut(false); }, [cutout]);
 
@@ -110,7 +135,9 @@ export default function GuideOverlay() {
   useEffect(() => {
     if (!cutout) { hasCutout.current = false; return undefined; }
     const to = { x: cutout.x, y: cutout.y, w: cutout.width, h: cutout.height };
-    if (!hasCutout.current || reduceMotion) {
+    const sameTarget = lastTarget.current === step?.target;
+    lastTarget.current = step?.target;
+    if (!hasCutout.current || reduceMotion || sameTarget) {
       hasCutout.current = true;
       geo.x.setValue(to.x); geo.y.setValue(to.y);
       geo.w.setValue(to.w); geo.h.setValue(to.h);
@@ -138,7 +165,8 @@ export default function GuideOverlay() {
   if (!ready && !showFallback) return null;
 
   const exitLabel = step.exitLabel || 'Skip';
-  const demoBanner = DEMO_BANNERS[session?.guideKey];
+  const demoBanner = isDemoRoute(step.screen) ? DEMO_BANNERS[session?.guideKey] : null;
+  const dimOpacity = session?.guideKey === 'welcome_tour' ? DIM_TOUR : DIM_PRACTICE;
   const placement = pickPlacement({ cutout, tooltipH, SH, insets, centred: centred || showFallback });
 
   return (
@@ -163,7 +191,7 @@ export default function GuideOverlay() {
 
         <Rect
           x="0" y="0" width={SW} height={SH}
-          fill={DIM_COLOR} opacity={DIM_OPACITY} mask="url(#guide-cut)"
+          fill={DIM_COLOR} opacity={dimOpacity} mask="url(#guide-cut)"
         />
 
         {cutout && (
@@ -206,7 +234,7 @@ export default function GuideOverlay() {
           one thing on screen that must never be hard to read. */}
       {!!demoBanner && (
         <View style={s.bannerSlot} pointerEvents="none">
-          <PracticeBanner label={demoBanner} />
+          <PracticeBanner label={demoBanner} withExit />
         </View>
       )}
 
@@ -214,13 +242,13 @@ export default function GuideOverlay() {
       {/* Clear of the practice banner when there is one, so the way out is
           never tucked behind it. */}
       <TouchableOpacity
-        style={[s.exit, { top: insets.top + 8 + (demoBanner ? BANNER_H : 0) }]}
+        style={[s.exit, { top: demoBanner ? bannerTopInset(insets) - 4 : insets.top + 8 }]}
         onPress={exit}
         hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={exitLabel}
       >
-        <Text style={s.exitText}>{exitLabel}</Text>
+        <Text style={[s.exitText, demoBanner && s.exitTextOnBanner]}>{exitLabel}</Text>
       </TouchableOpacity>
 
       {/* ── Tooltip ─────────────────────────────────────────────────────── */}
@@ -238,7 +266,10 @@ export default function GuideOverlay() {
                 <TouchableOpacity onPress={exit} style={s.secondaryBtn}>
                   <Text style={s.secondaryText}>{exitLabel}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setTimedOut(false)} activeOpacity={0.9}>
+                <TouchableOpacity
+                  onPress={() => { setTimedOut(false); setRetry((n) => n + 1); remeasureActive(); }}
+                  activeOpacity={0.9}
+                >
                   <LinearGradient colors={MG.primary} start={MG.start} end={MG.end} style={s.primaryBtn}>
                     <Text style={s.primaryText}>Try again</Text>
                   </LinearGradient>
@@ -313,6 +344,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10,
   },
   exitText: { fontFamily: MF.medium, fontSize: 13, color: MC.textTertiary },
+  exitTextOnBanner: { color: '#E4D8FF', textDecorationLine: 'underline' },
 
   tooltipWrap: { position: 'absolute', alignItems: 'center', paddingHorizontal: 16 },
   tooltip: {

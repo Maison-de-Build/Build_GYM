@@ -5,15 +5,22 @@
  * not exist otherwise. The guide never sends, drafts or pre-fills a message.
  */
 import { T } from '../targets';
-import { ACTIONS } from '../copy';
+import { ACTIONS, ENTRY } from '../copy';
 
 const CHAT = 'GuideDemoChat';
 
 export function coachChatSteps() {
   return [
+    // Starts on the real MY COACH card on Home. Optional: the card only draws
+    // once the chat thread exists, and a coach assigned minutes ago may not
+    // have one yet — the guide goes straight to the chat rather than stall.
+    {
+      id: 'C0', screen: 'MainTabs', target: T.HOME_COACH, optional: true,
+      ...ENTRY.coach,
+    },
     {
       id: 'C1', screen: CHAT, target: T.DC_THREAD,
-      title: 'Your coach',
+      title: 'Your chat',
       body: 'Questions about a session, your form or your plan? Message your coach here.',
     },
     {

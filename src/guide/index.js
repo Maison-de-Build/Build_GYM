@@ -10,5 +10,7 @@ export { default as GuideOverlay } from './GuideOverlay';
 export { default as GuideTarget } from './GuideTarget';
 export {
   useGuideStore, eligibleGuides, guideProgress, isCardExhausted,
-  shouldShowCard, shouldAutoStartWelcome, workoutGuideVariant, GUIDE_KEYS,
+  shouldShowCard, shouldAutoStartWelcome, workoutGuideVariant, shouldInterceptEntry,
+  GUIDE_KEYS,
 } from './guideStore';
+export { useGuideMeasure } from './GuideProvider';

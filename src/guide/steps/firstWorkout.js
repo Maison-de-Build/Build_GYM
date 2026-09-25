@@ -10,7 +10,7 @@
  * workout or touches the member's record.
  */
 import { T } from '../targets';
-import { ACTIONS } from '../copy';
+import { ACTIONS, ENTRY } from '../copy';
 
 const CHOICE = 'GuideDemoWorkoutChoice';
 const PLAYER = 'GuideDemoPlayer';
@@ -66,8 +66,24 @@ const loggingSteps = [
   },
 ];
 
+/**
+ * The first step, on the real Home: where this starts. A freestyle member plans
+ * from the add button; a coached member has none, and starts the session their
+ * coach set from the Today's workout card instead. Optional, so if the button
+ * isn't on screen the guide carries on into the practice run rather than stop.
+ */
+const entryStep = (hasCoach) => ({
+  id: 'W0',
+  screen: 'MainTabs',
+  target: hasCoach ? T.HOME_TODAY_WORKOUT : T.HOME_ADD_WORKOUT,
+  optional: true,
+  ...(hasCoach ? ENTRY.firstWorkoutCoached : ENTRY.firstWorkoutFreestyle),
+});
+
 export function firstWorkoutSteps({ hasCoach = false } = {}) {
-  const steps = hasCoach ? loggingSteps : [...planningSteps, ...loggingSteps];
+  const steps = hasCoach
+    ? [entryStep(true), ...loggingSteps]
+    : [entryStep(false), ...planningSteps, ...loggingSteps];
   return steps.map((step) => ({
     // Passive: the member reads, taps, and moves on. The demo screens respond
     // to the tap (a template ticks, a set is marked) but the guide decides when

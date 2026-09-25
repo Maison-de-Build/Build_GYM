@@ -23,7 +23,7 @@ const statusBarOffset = () =>
   (Platform.OS === 'android' && StatusBar.currentHeight) ? StatusBar.currentHeight : 0;
 
 export default function GuideTarget({ id, children, style, enabled = true, scrollRef, scrollOffsetRef }) {
-  const { registerTarget, unregisterTarget, registerMeasurer, step, measureTick } = useGuide();
+  const { registerTarget, unregisterTarget, registerMeasurer, step } = useGuide();
   const ref = useRef(null);
   // One measurement in flight at a time, but a request that arrives while one is
   // running is remembered rather than dropped. Scroll fires far faster than
