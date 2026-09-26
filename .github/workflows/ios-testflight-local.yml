@@ -1,0 +1,118 @@
+name: iOS TestFlight (local build on GitHub macOS)
+
+# Builds the signed iOS app on GitHub's own macOS runner with `eas build --local`
+# and uploads the .ipa to TestFlight.
+#
+# Why this exists next to ios-testflight.yml: that one builds on EAS's cloud and
+# stops working whenever the Expo account's monthly free iOS builds run out.
+# A --local build does not use EAS cloud build credits, and this repository is
+# public, so GitHub's macOS minutes are free. Signing still comes from EAS-managed
+# credentials, authenticated with the App Store Connect API key.
+#
+# Manual trigger only (Actions tab → Run workflow).
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        default: production
+        type: string
+
+concurrency:
+  group: ios-testflight-local-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-upload:
+    name: EAS local build + TestFlight upload
+    runs-on: macos-15
+    timeout-minutes: 150
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_ASC_API_KEY_PATH: ${{ github.workspace }}/asc-api-key.p8
+      EXPO_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      EXPO_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      EXPO_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      EXPO_APPLE_TEAM_TYPE: INDIVIDUAL
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # App Store Connect rejects uploads built with an old iOS SDK, so use the
+      # newest Xcode 26 on the image rather than the runner's default.
+      - name: Select newest Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then echo "::error::No Xcode 26 installed on this runner image"; exit 1; fi
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write .env (read at Metro bundle time via react-native-dotenv)
+        env:
+          ENV_FILE: ${{ secrets.BUILDGYM_ENV_FILE }}
+        run: |
+          printf '%s' "$ENV_FILE" > .env
+          echo ".env keys: $(grep -v '^#' .env | cut -d= -f1 | tr '\n' ' ')"
+          for k in BASE_API_URL CAFE_API_URL CAFE_SUPABASE_URL CAFE_SUPABASE_ANON_KEY GYM_BRIDGE_SECRET; do
+            grep -q "^$k=" .env || { echo "::error::.env secret is missing $k"; exit 1; }
+          done
+
+      - name: Write App Store Connect API key (.p8)
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: printf '%s' "$ASC_API_KEY_P8" > asc-api-key.p8
+
+      - name: EAS build (local)
+        run: |
+          npx eas-cli@latest build \
+            --platform ios \
+            --profile "${{ inputs.profile }}" \
+            --local \
+            --non-interactive \
+            --output "${{ github.workspace }}/build.ipa"
+
+      - name: Keep the .ipa
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build.ipa
+          retention-days: 7
+
+      # altool reads the key from ~/private_keys/AuthKey_<id>.p8. If altool is
+      # unavailable or refuses, fall back to EAS Submit (eas.json → submit.production).
+      - name: Upload to TestFlight
+        run: |
+          mkdir -p ~/private_keys
+          cp asc-api-key.p8 ~/private_keys/AuthKey_${EXPO_ASC_KEY_ID}.p8
+          if xcrun altool --upload-app --type ios --file build.ipa \
+               --apiKey "$EXPO_ASC_KEY_ID" --apiIssuer "$EXPO_ASC_ISSUER_ID"; then
+            echo "Uploaded with altool"
+          else
+            echo "::warning::altool upload failed — trying EAS Submit"
+            npx eas-cli@latest submit --platform ios --path build.ipa \
+              --profile "${{ inputs.profile }}" --non-interactive
+          fi
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            /Users/runner/Library/Logs/EASBuild
+            /Users/runner/Library/Developer/Xcode/DerivedData/**/Logs/Build/*.xcactivitylog
+            **/*.log
+          retention-days: 7
+          if-no-files-found: ignore

@@ -91,6 +91,14 @@
         {
           "cameraPermission": "Used to take a photo with your camera — for example, tapping the camera icon on your profile to set a profile picture, or adding a photo to a community post or a chat with your coach."
         }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Used to show your own health trends in the app. When you connect Apple Health, Maison de Build reads your heart rate, resting heart rate, heart rate variability, sleep, active calories and workouts. It never writes to Apple Health, and your health data is never sold or used for advertising.",
+          "NSHealthUpdateUsageDescription": false,
+          "background": false
+        }
       ]
     ]
   }

@@ -22,9 +22,12 @@ import {
 import { useAuthStore } from './src/store/authStore';
 import { useAnnouncementStore } from './src/store/announcementStore';
 import { GuideProvider, GuideOverlay, useGuideStore } from './src/guide';
+import useAppleHealthAutoSync from './src/hooks/useAppleHealthAutoSync';
 
 export default function App() {
   const [fontsLoaded] = useFonts(FONT_ASSETS);
+  // Apple Health: sync on launch / foreground (iOS members only, no-op elsewhere).
+  useAppleHealthAutoSync();
 
   useEffect(() => {
     // The Android channel is defined once, in notificationService — Android

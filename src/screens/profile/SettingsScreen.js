@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Linking, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Linking, Alert, Platform,
 } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -108,6 +108,21 @@ export default function SettingsScreen({ navigation }) {
               Alert.alert('Unable to open settings', 'Please manage notifications in your phone’s Settings app.'))}
           />
         </View>
+
+        {/* Health — Apple Health is iPhone-only; Android gets this row with Whoop. */}
+        {Platform.OS === 'ios' && (
+          <>
+            <Text style={styles.sectionLabel}>Health</Text>
+            <View style={styles.card}>
+              <LinkRow
+                icon="watch"
+                label="Devices"
+                value="Apple Health"
+                onPress={() => navigation.navigate('MdbWearableSettings')}
+              />
+            </View>
+          </>
+        )}
 
         {/* Privacy */}
         <Text style={styles.sectionLabel}>Privacy</Text>

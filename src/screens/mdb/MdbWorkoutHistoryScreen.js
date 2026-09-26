@@ -8,14 +8,15 @@
  * as the secondary form, with the "does not count for streaks or leaderboard"
  * notice (PRD C.3 / C.5).
  *
- * ⚠️ Wearable imports do not exist yet (Part C), so today the feed is all-App.
- * The source filter and the secondary row style are both here and correct; when
- * imports land they slot in without a redesign.
+ * Apple Watch workouts (Part C) come from /wearables/workouts on iOS and are
+ * merged in per day, after the app's own sessions. They have no detail screen
+ * (there are no sets to show), so their rows are not tappable. Whoop stays
+ * listed-but-inert until its phase.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, ActivityIndicator, RefreshControl, Modal, Pressable,
+  StatusBar, ActivityIndicator, RefreshControl, Modal, Pressable, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,13 +24,16 @@ import { MC, MF, MR, MS } from '../../theme/mdbKit';
 import MdbIcon from '../../components/mdb/MdbIcon';
 import { LuxuryCard, EmptyState } from '../../components/mdb/MdbPrimitives';
 import { fetchWorkoutHistory } from '../../services/workoutService';
+import { fetchWearableWorkouts } from '../../services/wearableService';
 import { isoDate } from '../../utils/mdbWorkout';
+
+const IS_IOS = Platform.OS === 'ios';
 
 const SOURCES = [
   { key: 'all', label: 'All' },
   { key: 'app', label: 'App Only' },
-  // Listed but inert until Part C — the backend has no wearable rows to return.
-  { key: 'apple', label: 'Apple Watch', disabled: true },
+  // Apple Health is iPhone-only; Whoop stays inert until its phase.
+  { key: 'apple', label: 'Apple Watch', disabled: !IS_IOS },
   { key: 'whoop', label: 'Whoop', disabled: true },
 ];
 
@@ -42,11 +46,18 @@ export default function MdbWorkoutHistoryScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    try {
-      const res = await fetchWorkoutHistory({ limit: 50 });
-      setRows(Array.isArray(res) ? res : (res?.items || res?.data || []));
-    } catch { setRows([]); }
-    finally { setLoading(false); }
+    // Device workouts are a bonus: if that request fails the app history must
+    // still show, so the two are settled independently.
+    const [appRes, deviceRes] = await Promise.allSettled([
+      fetchWorkoutHistory({ limit: 50 }),
+      IS_IOS ? fetchWearableWorkouts({ limit: 50 }) : Promise.resolve([]),
+    ]);
+    const appRows = appRes.status === 'fulfilled'
+      ? (Array.isArray(appRes.value) ? appRes.value : (appRes.value?.items || appRes.value?.data || []))
+      : [];
+    const deviceRows = deviceRes.status === 'fulfilled' && Array.isArray(deviceRes.value) ? deviceRes.value : [];
+    setRows([...appRows, ...deviceRows]);
+    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -94,13 +105,16 @@ export default function MdbWorkoutHistoryScreen({ navigation }) {
                   <Text style={s.groupTitle}>{g.label}</Text>
                 </View>
 
-                {g.items.map((row) => (
-                  <SessionCard
-                    key={row.id}
-                    row={row}
-                    onPress={() => navigation.navigate('MdbWorkoutSummary', { workoutLogId: row.id })}
-                  />
-                ))}
+                {g.items.map((row) => {
+                  const external = row.source && row.source !== 'app';
+                  return (
+                    <SessionCard
+                      key={`${row.source || 'app'}-${row.id}`}
+                      row={row}
+                      onPress={external ? undefined : () => navigation.navigate('MdbWorkoutSummary', { workoutLogId: row.id })}
+                    />
+                  );
+                })}
               </View>
             ))
           )}
@@ -170,7 +184,7 @@ function SessionCard({ row, onPress }) {
       ];
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={!onPress}>
       <LuxuryCard style={external ? s.cardSecondary : s.cardPrimary}>
         <View style={s.cardTop}>
           <View style={{ flex: 1 }}>
@@ -191,9 +205,9 @@ function SessionCard({ row, onPress }) {
 
           {row.hasPr ? (
             <View style={s.prDot} />
-          ) : (
+          ) : onPress ? (
             <MdbIcon name="chevron-right" size={14} color={MC.textTertiary} />
-          )}
+          ) : null}
         </View>
 
         {external && (
@@ -228,7 +242,12 @@ function groupByDay(rows, source) {
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([date, items]) => ({
       date,
-      items,
+      items: [
+        ...items.filter((r) => !r.source || r.source === 'app'),
+        ...items
+          .filter((r) => r.source && r.source !== 'app')
+          .sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || ''))),
+      ],
       isToday: date === today,
       label: dayLabel(date),
     }));

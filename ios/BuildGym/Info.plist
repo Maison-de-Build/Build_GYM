@@ -21,7 +21,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.0.2</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -52,6 +52,8 @@
     <string>Used to unlock the gym gate. When you hold the check-in dial, the app sends your membership credential over Bluetooth to the door reader at the entrance.</string>
     <key>NSCameraUsageDescription</key>
     <string>Used to take a photo with your camera — for example, tapping the camera icon on your profile to set a profile picture, or adding a photo to a community post or a chat with your coach.</string>
+    <key>NSHealthShareUsageDescription</key>
+    <string>Used to show your own health trends in the app. When you connect Apple Health, Maison de Build reads your heart rate, resting heart rate, heart rate variability, sleep, active calories and workouts. It never writes to Apple Health, and your health data is never sold or used for advertising.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Used only if you record a video to share, so the clip can include sound.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
