@@ -54,6 +54,8 @@
     <string>Used to take a photo with your camera — for example, tapping the camera icon on your profile to set a profile picture, or adding a photo to a community post or a chat with your coach.</string>
     <key>NSHealthShareUsageDescription</key>
     <string>Used to show your own health trends in the app. When you connect Apple Health, Maison de Build reads your heart rate, resting heart rate, heart rate variability, sleep, active calories and workouts. It never writes to Apple Health, and your health data is never sold or used for advertising.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Used only if you choose to save your Maison de Build gym workouts to Apple Health, so they count toward your Activity rings. The app asks before saving anything and never changes or deletes your existing health data.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Used only if you record a video to share, so the clip can include sound.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>

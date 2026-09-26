@@ -96,7 +96,7 @@
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthShareUsageDescription": "Used to show your own health trends in the app. When you connect Apple Health, Maison de Build reads your heart rate, resting heart rate, heart rate variability, sleep, active calories and workouts. It never writes to Apple Health, and your health data is never sold or used for advertising.",
-          "NSHealthUpdateUsageDescription": false,
+          "NSHealthUpdateUsageDescription": "Used only if you choose to save your Maison de Build gym workouts to Apple Health, so they count toward your Activity rings. The app asks before saving anything and never changes or deletes your existing health data.",
           "background": false
         }
       ]
