@@ -10,6 +10,13 @@ const KEYS = {
   USER_DATA: 'bg_user_data',
 };
 
+/** Lazy so the guide store's service imports can't close a module cycle here. */
+const loadGuides = () => {
+  import('../guide/guideStore')
+    .then((m) => m.useGuideStore.getState().load())
+    .catch(() => {});
+};
+
 export const useAuthStore = create((set, get) => ({
   user: null,
   accessToken: null,
@@ -33,6 +40,7 @@ export const useAuthStore = create((set, get) => ({
 
       if (accessToken && refreshToken && user) {
         set({ accessToken, refreshToken, user, isAuthenticated: true, isLoading: false });
+        loadGuides();
         // Re-apply GA4 identity on session restore (display_id only, never UUID).
         setUserId(user.displayId ?? null).catch(() => {});
         setUserRole(user.role).catch(() => {});
@@ -57,6 +65,10 @@ export const useAuthStore = create((set, get) => ({
         SecureStore.setItemAsync(KEYS.USER_DATA, JSON.stringify(user)),
       ]);
       set({ user, accessToken, refreshToken, isAuthenticated: true });
+      // Without this a member who has just signed in holds the all-off
+      // defaults — no welcome tour, no Get started card — until the app
+      // happens to be backgrounded and reopened.
+      loadGuides();
       // GA4 identity — display_id only, never the UUID.
       setUserId(user.displayId ?? null).catch(() => {});
       setUserRole(user.role).catch(() => {});
@@ -189,6 +201,12 @@ export const useAuthStore = create((set, get) => ({
     });
     // Drop the previous user's unread count so it can't leak into the next login.
     useAnnouncementStore.getState().clearUnread();
+    // Same for the onboarding guides: the next member on this handset must not
+    // inherit the last one's progress, or their welcome tour never runs.
+    // Lazily imported for the same store-cycle reason as the two below.
+    import('../guide/guideStore')
+      .then((m) => m.useGuideStore.getState().clear())
+      .catch(() => {});
     // Same for chat: drop the /chat socket (it stays authenticated as the outgoing
     // user until disconnected), clear the store and empty the on-device cache.
     // Lazily imported for the same store-cycle reason as notificationService above.

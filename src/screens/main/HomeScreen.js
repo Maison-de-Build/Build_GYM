@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, Image, RefreshControl,
+  StatusBar, Image, RefreshControl, AppState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -25,6 +25,12 @@ import MdbIcon from '../../components/mdb/MdbIcon';
 import { MC, MF as MdbFont } from '../../theme/mdbKit';
 import useMemberMode from '../../hooks/useMemberMode';
 import useWorkoutActions from '../../hooks/useWorkoutActions';
+import GetStartedCard from '../../components/guide/GetStartedCard';
+import {
+  GuideTarget, useGuide, useGuideStore, shouldAutoStartWelcome, shouldInterceptEntry,
+} from '../../guide';
+import { useGuideLauncher } from '../../guide/useGuideLauncher';
+import { T } from '../../guide/targets';
 
 // Mockup accent palette (kept as literals — multi-colour KPI / quick-access tiles).
 const AMBER = '#F59E0B';
@@ -89,6 +95,9 @@ export default function HomeScreen({ navigation }) {
   const [upcomingTrial, setUpcomingTrial] = useState(null);
   const [calToday, setCalToday] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  // The welcome tour waits for this: spotlighting a card that is still a
+  // skeleton puts the highlight where the card used to be.
+  const [contentLoaded, setContentLoaded] = useState(false);
   const { isPt } = useMemberMode();
 
   // Live wallet balance (fetch + socket).
@@ -123,6 +132,7 @@ export default function HomeScreen({ navigation }) {
         .then((res) => setUpcomingTrial((res.data?.data || [])[0] || null))
         .catch(() => setUpcomingTrial(null)),
     ]);
+    setContentLoaded(true);
   }, []);
 
   const workoutActions = useWorkoutActions(navigation, loadContent);
@@ -131,6 +141,53 @@ export default function HomeScreen({ navigation }) {
   // Scheduling, editing and removing all happen on other screens, so today's
   // card would otherwise go stale the moment the member comes back.
   useEffect(() => navigation.addListener('focus', loadContent), [navigation, loadContent]);
+
+  /* ── Onboarding guides ───────────────────────────────────────────────── */
+  const guideState  = useGuideStore((s) => s.state);
+  const guideConfig = useGuideStore((s) => s.config);
+  const guideLoaded = useGuideStore((s) => s.loaded);
+  const dismissCard = useGuideStore((s) => s.dismissCard);
+  const { isRunning: guideRunning, remeasureActive } = useGuide();
+  const launchGuide = useGuideLauncher();
+
+  // The first tap of a feature's Home button runs its guide instead, while that
+  // guide is still unseen. After that the button just opens the feature.
+  const openOrGuide = useCallback((guideKey, open) => {
+    if (!guideRunning && guideLoaded && shouldInterceptEntry(guideState, guideConfig, guideKey)
+        && launchGuide(guideKey)) return;
+    open();
+  }, [guideRunning, guideLoaded, guideState, guideConfig, launchGuide]);
+  const openAddWorkout = useCallback(
+    () => openOrGuide('first_workout', () => navigation.navigate('MdbTrainingHub')),
+    [openOrGuide, navigation],
+  );
+
+  // App.js asks for notification permission on launch, and a forced-update
+  // modal can be up too. Starting the tour underneath either would dim a screen
+  // the member cannot see. Tracking foreground state means the tour starts when
+  // whatever was covering Home goes away, rather than being missed entirely.
+  // Handed to every GuideTarget below so a spotlight on a card under the fold
+  // scrolls it up before measuring instead of drawing half off the screen.
+  // The offset is tracked here because scrollTo wants an absolute content
+  // position, and the target only knows where it sits on the window.
+  const scrollRef = useRef(null);
+  const scrollOffsetRef = useRef(0);
+
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => setAppActive(st === 'active'));
+    return () => sub.remove();
+  }, []);
+
+  // First Home render where the tour has never run. The 600ms is the spec's:
+  // it lets the last card settle after its data lands, so the first spotlight
+  // measures a card that has stopped moving.
+  useEffect(() => {
+    if (!contentLoaded || !guideLoaded || guideRunning || !appActive) return undefined;
+    if (!shouldAutoStartWelcome(guideState, guideConfig)) return undefined;
+    const t = setTimeout(() => launchGuide('welcome_tour'), 600);
+    return () => clearTimeout(t);
+  }, [contentLoaded, guideLoaded, guideRunning, appActive, guideState, guideConfig, launchGuide]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -207,6 +264,14 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <ScrollView
+        ref={scrollRef}
+        onScroll={(e) => {
+          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+          // Keeps the cutout pinned to its target through the whole scroll,
+          // whether the guide started it or the member did.
+          remeasureActive();
+        }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -263,10 +328,26 @@ export default function HomeScreen({ navigation }) {
           <KpiCard label="POINTS" value={pointsValue} icon="diamond" color={SILVER} />
         </View>
 
+        {/* ── GET STARTED (onboarding guides) ───────── */}
+        {/* The spec puts this directly under the header; Home's header is
+            followed by the week strip and the KPI grid, so it sits as close to
+            the top as it can without displacing them — and immediately above
+            the workout card the first guide is about. */}
+        <GuideTarget id={T.HOME_GET_STARTED} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+          <GetStartedCard
+            state={guideState}
+            config={guideConfig}
+            style={styles.noGap}
+            onDismiss={dismissCard}
+            onStartGuide={launchGuide}
+          />
+        </GuideTarget>
+
         {/* ── TODAY'S WORKOUT ───────────────────────── */}
         {/* The one place workout logging starts from — Training's own screens
             are browse/schedule only now. */}
-        <View style={styles.sectionBlock}>
+        <GuideTarget id={T.HOME_TODAY_WORKOUT} style={styles.sectionBlock} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+        <View>
           <Text style={styles.eyebrow}>TODAY'S WORKOUT</Text>
           {todayInstances.length === 1 ? (
             <View style={{ gap: 12, marginTop: 8 }}>
@@ -277,14 +358,16 @@ export default function HomeScreen({ navigation }) {
                 {...workoutActions(todayInstances[0])}
               />
               {!isPt && (
-                <TouchableOpacity
-                  style={styles.addMoreRow}
-                  onPress={() => navigation.navigate('MdbTrainingHub')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
-                  <Text style={styles.addMoreText}>Add another workout</Text>
-                </TouchableOpacity>
+                <GuideTarget id={T.HOME_ADD_WORKOUT} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+                  <TouchableOpacity
+                    style={styles.addMoreRow}
+                    onPress={openAddWorkout}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
+                    <Text style={styles.addMoreText}>Add another workout</Text>
+                  </TouchableOpacity>
+                </GuideTarget>
               )}
             </View>
           ) : todayInstances.length > 1 ? (
@@ -306,29 +389,41 @@ export default function HomeScreen({ navigation }) {
                 </LuxuryCard>
               </TouchableOpacity>
               {!isPt && (
-                <TouchableOpacity
-                  style={styles.addMoreRow}
-                  onPress={() => navigation.navigate('MdbTrainingHub')}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
-                  <Text style={styles.addMoreText}>Add another workout</Text>
-                </TouchableOpacity>
+                <GuideTarget id={T.HOME_ADD_WORKOUT} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+                  <TouchableOpacity
+                    style={styles.addMoreRow}
+                    onPress={openAddWorkout}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="add" size={16} color={COLORS.primaryLight} />
+                    <Text style={styles.addMoreText}>Add another workout</Text>
+                  </TouchableOpacity>
+                </GuideTarget>
               )}
             </View>
           ) : (
             <View style={{ marginTop: 8 }}>
-              <WorkoutEmptyState
-                variant={isPt ? 'pt' : 'freestyle'}
-                onAdd={() => navigation.navigate('MdbTrainingHub')}
-              />
+              {/* Only the freestyle card has an add button to point at. */}
+              <GuideTarget
+                id={T.HOME_ADD_WORKOUT}
+                enabled={!isPt}
+                scrollRef={scrollRef}
+                scrollOffsetRef={scrollOffsetRef}
+              >
+                <WorkoutEmptyState
+                  variant={isPt ? 'pt' : 'freestyle'}
+                  onAdd={openAddWorkout}
+                />
+              </GuideTarget>
             </View>
           )}
         </View>
+        </GuideTarget>
 
         {/* ── CALORIES BURNED ────────────────────────── */}
+        <GuideTarget id={T.HOME_CALORIES} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
         <TouchableOpacity
-          style={styles.calCard}
+          style={[styles.calCard, styles.noGap]}
           activeOpacity={0.9}
           onPress={() => navigation.navigate('MdbHealthMetrics', { metric: 'calories' })}
         >
@@ -368,10 +463,12 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
         </TouchableOpacity>
+        </GuideTarget>
 
         {/* ── BUILD COINS CARD ─────────────────────── */}
+        <GuideTarget id={T.HOME_COINS} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
         <TouchableOpacity
-          style={styles.coinsCard}
+          style={[styles.coinsCard, styles.noGap]}
           activeOpacity={0.9}
           onPress={() => navigation.push('BuildCoinTransactions')}
         >
@@ -389,9 +486,15 @@ export default function HomeScreen({ navigation }) {
             <MaterialIcons name="chevron-right" size={18} color={COLORS.textMuted} />
           </View>
         </TouchableOpacity>
+        </GuideTarget>
 
         {/* ── MY COACH ─────────────────────────────── */}
-        <MyCoachCard navigation={navigation} />
+        <MyCoachCard
+          navigation={navigation}
+          onOpen={(open) => openOrGuide('coach_chat', open)}
+          scrollRef={scrollRef}
+          scrollOffsetRef={scrollOffsetRef}
+        />
 
         {/* ── QUICK ACCESS GRID ────────────────────── */}
         <View style={styles.quickGrid}>
@@ -408,7 +511,9 @@ export default function HomeScreen({ navigation }) {
                   // had open inside Training — navigate reuses the existing
                   // instance instead. Every other tile keeps push().
                   if (q.route === 'MdbTrainingHub') navigation.navigate(q.route);
-                  else navigation.push(q.route);
+                  else if (q.route === 'Activities') {
+                    openOrGuide('booking_practice', () => navigation.push('Activities'));
+                  } else navigation.push(q.route);
                 }}
               >
                 <MaterialIcons
@@ -421,9 +526,12 @@ export default function HomeScreen({ navigation }) {
               </TouchableOpacity>
             );
             // Every tile gets an equal grid slot so tiles occupy identical space.
+            // The Activities tile is where the booking guide starts.
             return (
               <View key={q.label} style={styles.quickTileSlot}>
-                {tile}
+                {q.route === 'Activities'
+                  ? <GuideTarget id={T.HOME_ACTIVITIES} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>{tile}</GuideTarget>
+                  : tile}
                 {cs && (
                   <View style={styles.quickSoonWrap} pointerEvents="none">
                     <View style={styles.quickSoonBadge}>
@@ -481,6 +589,7 @@ export default function HomeScreen({ navigation }) {
 
       {/* ── STICKY CHECK-IN FAB ──────────────────── */}
       <View style={styles.fabWrap} pointerEvents="box-none">
+        <GuideTarget id={T.HOME_CHECK_IN}>
         <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Access')}>
           <LinearGradient
             colors={[COLORS.primary, '#923a93']}
@@ -492,6 +601,7 @@ export default function HomeScreen({ navigation }) {
           </LinearGradient>
         </TouchableOpacity>
         <Text style={styles.fabLabel}>CHECK IN</Text>
+        </GuideTarget>
       </View>
     </View>
   );
@@ -514,7 +624,7 @@ function KpiCard({ label, value, icon, color }) {
  * Renders nothing until the thread list is known, so Home never flashes a
  * "no coach" row for a member who does have one.
  */
-function MyCoachCard({ navigation }) {
+function MyCoachCard({ navigation, onOpen, scrollRef, scrollOffsetRef }) {
   const threads = useChatStore((s) => s.threads);
   const init = useChatStore((s) => s.init);
 
@@ -524,11 +634,15 @@ function MyCoachCard({ navigation }) {
   const hasPast = threads.some((t) => t.state === 'archived');
   if (!active && !hasPast) return null;
 
-  const go = () => navigation.push('MyChat');
+  const go = () => {
+    const open = () => navigation.push('MyChat');
+    if (onOpen) onOpen(open); else open();
+  };
 
   if (!active) {
     return (
-      <TouchableOpacity style={styles.coachCard} activeOpacity={0.85} onPress={go}>
+      <GuideTarget id={T.HOME_COACH} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+      <TouchableOpacity style={[styles.coachCard, styles.noGap]} activeOpacity={0.85} onPress={go}>
         <View style={[styles.coachAvatar, styles.coachAvatarFallback]}>
           <MaterialIcons name="chat" size={22} color="#A78BFA" />
         </View>
@@ -538,11 +652,13 @@ function MyCoachCard({ navigation }) {
         </View>
         <MaterialIcons name="chevron-right" size={18} color={COLORS.textMuted} />
       </TouchableOpacity>
+      </GuideTarget>
     );
   }
 
   return (
-    <TouchableOpacity style={styles.coachCard} activeOpacity={0.85} onPress={go}>
+    <GuideTarget id={T.HOME_COACH} style={styles.guideTargetGap} scrollRef={scrollRef} scrollOffsetRef={scrollOffsetRef}>
+    <TouchableOpacity style={[styles.coachCard, styles.noGap]} activeOpacity={0.85} onPress={go}>
       {active.counterpartPhoto
         ? <Image source={{ uri: active.counterpartPhoto }} style={styles.coachAvatar} />
         : <View style={[styles.coachAvatar, styles.coachAvatarFallback]}>
@@ -559,6 +675,7 @@ function MyCoachCard({ navigation }) {
         ? <View style={styles.coachPill}><Text style={styles.coachPillTxt}>{active.unread}</Text></View>
         : <MaterialIcons name="chevron-right" size={18} color={COLORS.textMuted} />}
     </TouchableOpacity>
+    </GuideTarget>
   );
 }
 
@@ -643,6 +760,10 @@ const styles = StyleSheet.create({
 
   // Today's workout
   sectionBlock: { marginBottom: 16 },
+  // The gap a guide target carries on behalf of the card inside it, so the
+  // highlight measures the card and not the card plus its margin.
+  guideTargetGap: { marginBottom: 16 },
+  noGap: { marginBottom: 0 },
   multiCard: { padding: 16, gap: 6 },
   multiCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   multiCardTitle: { flex: 1, fontFamily: MdbFont.semibold, fontSize: 16, color: MC.text, letterSpacing: -0.2 },

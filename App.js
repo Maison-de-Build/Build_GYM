@@ -21,6 +21,7 @@ import {
 } from './src/services/notificationService';
 import { useAuthStore } from './src/store/authStore';
 import { useAnnouncementStore } from './src/store/announcementStore';
+import { GuideProvider, GuideOverlay, useGuideStore } from './src/guide';
 
 export default function App() {
   const [fontsLoaded] = useFonts(FONT_ASSETS);
@@ -40,6 +41,9 @@ export default function App() {
       const { isAuthenticated } = useAuthStore.getState();
       if (isAuthenticated) {
         useAnnouncementStore.getState().refreshUnreadCount().catch(() => {});
+        // Guide switches are read here and on every foreground, so one turned
+        // off on the server stops running without an app release.
+        useGuideStore.getState().load().catch(() => {});
       }
 
       // ── 2. Ask for notification permission on launch (once) ──────────────
@@ -104,6 +108,7 @@ export default function App() {
           const { isAuthenticated: authed } = useAuthStore.getState();
           if (authed) {
             useAnnouncementStore.getState().refreshUnreadCount().catch(() => {});
+            useGuideStore.getState().load().catch(() => {});
           }
         }
       });
@@ -135,7 +140,13 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AppNavigator />
+        {/* The guide overlay sits above the navigator so one instance can dim
+            and cut out any screen. UpdateGate stays last: a forced update must
+            cover a running guide, not the other way round. */}
+        <GuideProvider>
+          <AppNavigator />
+          <GuideOverlay />
+        </GuideProvider>
         <UpdateGate />
       </SafeAreaProvider>
     </GestureHandlerRootView>
