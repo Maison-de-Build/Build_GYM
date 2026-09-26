@@ -311,10 +311,9 @@ export default function AppNavigator() {
           options={{ animation: 'slide_from_bottom' }}
         />
         <Stack.Screen name="BuildCoinTransactions" component={BuildCoinTransactionsScreen} />
-        {/* No AddBuildCoins / PaymentSuccess / PaymentFailed routes: coins are a
-            digital good, so App Store guideline 3.1.1 forbids selling them for
-            real money outside Apple's IAP. Members top up at reception or on the
-            web. Do not re-add these screens or any link to the web top-up page. */}
+        {/* No AddBuildCoins / PaymentSuccess / PaymentFailed routes: coins are not
+            sold inside the app. Members top up at reception, or on the web top-up
+            page that BuildCoinTransactions' ADD COINS button opens in the browser. */}
         <Stack.Screen
           name="TransactionDetail"
           component={TransactionDetailScreen}

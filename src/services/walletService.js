@@ -4,22 +4,21 @@
  * API calls for the Build Coins wallet.
  * Uses the authenticated `api` instance (JWT auto-refresh included).
  *
- * Read-only by design. The purchase calls that used to live here
- * (POST /wallet/purchase, and the Razorpay create-order/verify pair) are gone:
- * coins are a digital good, so App Store guideline 3.1.1 forbids selling them
- * for real money outside Apple's IAP. Top-ups happen at reception via the admin
- * app, or on the web top-up page — never from here.
+ * Read-only by design. The in-app purchase calls that used to live here
+ * (POST /wallet/purchase, and the Razorpay create-order/verify pair) are gone.
+ * Top-ups happen at reception via the admin app, or on the web top-up page,
+ * which the wallet's ADD COINS button opens in the browser.
  */
 
 import api from './apiService';
 
 /**
  * GET /api/wallet/balance
- * Returns { balance, updatedAt }.
+ * Returns { balance, updatedAt, purchaseUrl }.
  */
 export const fetchBalance = async () => {
   const { data } = await api.get('/wallet/balance');
-  return data.data; // { balance, updatedAt }
+  return data.data; // { balance, updatedAt, purchaseUrl }
 };
 
 /**

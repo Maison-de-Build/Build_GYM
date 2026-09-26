@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Linking, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,10 +12,13 @@ import SafeBottomBar from '../../components/SafeBottomBar';
 const GOLD = '#FFD700';
 const AMBER = '#F59E0B';
 const LOW_BALANCE_THRESHOLD = 200;
+// Used until /wallet/balance has returned the Super Admin–configured link.
+const DEFAULT_PURCHASE_URL = 'https://pay.maisondebuild.com/';
 
 export default function BuildCoinTransactionsScreen({ navigation }) {
   const {
     balance,
+    purchaseUrl,
     transactions,
     hasMore,
     isLoading,
@@ -42,6 +45,14 @@ export default function BuildCoinTransactionsScreen({ navigation }) {
     await Promise.all([fetchBalance(), fetchTransactions()]);
     setRefreshing(false);
   }, [fetchBalance, fetchTransactions]);
+
+  // Coins are bought on the web top-up page, opened in the browser rather than
+  // inside the app. openURL().catch() rather than canOpenURL() — see UpdateGate.
+  const openPurchasePage = () => {
+    Linking.openURL(purchaseUrl || DEFAULT_PURCHASE_URL).catch(() => {
+      Alert.alert('Could not open', 'Please try again in a moment.');
+    });
+  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -90,6 +101,22 @@ export default function BuildCoinTransactionsScreen({ navigation }) {
               <Ionicons name="ellipse" size={22} color={GOLD} style={{ marginLeft: 8 }} />
             </View>
           )}
+
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={openPurchasePage}
+            style={styles.addBtnWrap}
+          >
+            <LinearGradient
+              colors={[AMBER, GOLD]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.addBtn}
+            >
+              <Ionicons name="add" size={20} color="#1A1206" />
+              <Text style={styles.addBtnText}>ADD COINS</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         {/* Low balance banner */}
@@ -97,7 +124,7 @@ export default function BuildCoinTransactionsScreen({ navigation }) {
           <View style={styles.lowBanner}>
             <Ionicons name="warning-outline" size={20} color={AMBER} />
             <Text style={styles.lowBannerText}>
-              Low balance. You may not be able to book your next session.
+              Low Balance. Top up to continue booking sessions without interruption.
             </Text>
           </View>
         )}
@@ -205,10 +232,14 @@ const styles = StyleSheet.create({
   // Balance
   balanceSection: { alignItems: 'center', paddingVertical: 24 },
   balanceLabel: { fontFamily: FONTS.label, fontSize: 11, color: COLORS.textMuted, letterSpacing: 2, marginBottom: 12 },
-  // marginBottom was spacing the balance off the ADD COINS button that used to
-  // sit under it; without the button the balance is the last thing in the block.
-  balanceRow: { flexDirection: 'row', alignItems: 'center' },
+  balanceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   balanceNum: { fontFamily: FONTS.headline, fontSize: 44, color: COLORS.white },
+  addBtnWrap: { borderRadius: 999, overflow: 'hidden' },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 11, paddingHorizontal: 28,
+  },
+  addBtnText: { fontFamily: FONTS.bodyBold, fontSize: 13, color: '#1A1206', letterSpacing: 1 },
 
   sectionLabel: { fontFamily: FONTS.label, fontSize: 10, color: COLORS.primaryLight, letterSpacing: 2.5, marginBottom: 12, marginTop: 8 },
 

@@ -5,6 +5,7 @@
  *
  * State:
  *   balance      — current coin balance (number)
+ *   purchaseUrl  — web top-up page for the ADD COINS button (from /wallet/balance)
  *   transactions — loaded transaction history (array)
  *   nextCursor   — cursor for the next page of transactions
  *   hasMore      — whether more transaction pages exist
@@ -19,10 +20,10 @@
  *   fetchMoreTransactions() — append next page
  *   reset()              — clear state on logout
  *
- * There is no purchase action here by design. Coins are a digital good, so App
- * Store guideline 3.1.1 forbids selling them for real money outside Apple's IAP.
- * Balances still move in real time: the backend credits a top-up (reception or
- * web) and pushes `wallet:balance_updated` over the socket, which lands in
+ * There is no purchase action here: coins are bought at reception or on the web
+ * top-up page, which the ADD COINS button opens in the browser (purchaseUrl,
+ * set by a Super Admin). Balances still move in real time: the backend credits
+ * the top-up and pushes `wallet:balance_updated` over the socket, which lands in
  * setBalance/applyDelta below.
  */
 
@@ -34,6 +35,7 @@ import {
 
 export const useWalletStore = create((set, get) => ({
   balance: 0,
+  purchaseUrl: null,
   transactions: [],
   nextCursor: null,
   hasMore: false,
@@ -48,7 +50,7 @@ export const useWalletStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const wallet = await apiFetchBalance();
-      set({ balance: wallet.balance, isLoading: false });
+      set({ balance: wallet.balance, purchaseUrl: wallet.purchaseUrl ?? null, isLoading: false });
     } catch (err) {
       set({ isLoading: false, error: err?.response?.data?.message ?? 'Failed to load balance' });
     }
@@ -108,6 +110,7 @@ export const useWalletStore = create((set, get) => ({
    */
   reset: () => set({
     balance: 0,
+    purchaseUrl: null,
     transactions: [],
     nextCursor: null,
     hasMore: false,
